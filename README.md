@@ -1,7 +1,10 @@
 # MCC_Lesotho
 
 Data:
-
+- WaterPolyPtsTS.csv sample points for water pixels. This includes the data for 18 time-stamp images.
+- SoilPolyPtsTS.csv
+- FarmPolyPtsTS.csv
+- allpoints.csv the combination of soil, water, farm sample pixels.
 
 File description:
 - IndexVis.ipynb script to create correlation matrix of different indices.
