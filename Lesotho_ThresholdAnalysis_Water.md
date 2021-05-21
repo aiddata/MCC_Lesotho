@@ -209,7 +209,6 @@ var waterBinaries = Sentinel2idxCollection.map(selectSWI).map(function(image){
 });
 ```
 
-
 ### To export the binary time-series water masks
 
 The below function helps you to output one image, with each band represent one time-stamp water mask.
@@ -228,6 +227,11 @@ Export.image.toDrive({image: waterImage,
                       formatOptions: {cloudOptimized: true}
 }); //1191858690
 ```
+
+### Accuracy Assessment
+
+
+
 
 ## Generating ROC
 
@@ -283,14 +287,9 @@ Map.addLayer(rd_points_fl,{}, 'Points')
 var combinedPointCollection = ptsBuff_water.merge(ptsBuff_fl);
 print("combinedPointCollection", combinedPointCollection);
 
-```
-Third, 
 
-
-```javascript
 // Choosing the first SWI layer in the image collection
 var SWIindex = Sentinel2idxCollection.select(["SWI"]).first();
-
 
 // Sample input points.
 var waterd = SWIindex.reduceRegions(ptsBuff_water,ee.Reducer.max().setOutputs(['SWI']),10).map(function(x){return x.set('is_target',1);})
@@ -298,6 +297,54 @@ var nonwaterd = SWIindex.reduceRegions(ptsBuff_fl,ee.Reducer.max().setOutputs(['
 var combined = waterd.merge(nonwaterd);
 
 ```
+Third, below functions are used to generate the ROC curve, and to calculate the best ROC value. 
+
+```javascript
+
+// Calculate the Receiver Operating Characteristic (ROC) curve
+// -----------------------------------------------------------
+
+// Define the ROC range and relevant values
+var ROC_field = 'SWI', ROC_min = -1, ROC_max = 1, ROC_steps = 100, ROC_points = combinedPointCollection
+
+var ROC = ee.FeatureCollection(ee.List.sequence(ROC_min, ROC_max, null, ROC_steps).map(function (cutoff) {
+  var target_roc = ROC_points.filterMetadata('is_target','equals',1);
+  // true-positive-rate, sensitivity  
+  var TPR = ee.Number(target_roc.filterMetadata(ROC_field,'greater_than',cutoff).size()).divide(target_roc.size());
+  var non_target_roc = ROC_points.filterMetadata('is_target','equals',0);
+  // true-negative-rate, specificity  
+  var TNR = ee.Number(non_target_roc.filterMetadata(ROC_field,'less_than',cutoff).size()).divide(non_target_roc.size());
+  return ee.Feature(null,{cutoff: cutoff, TPR: TPR, TNR: TNR, FPR:TNR.subtract(1).multiply(-1),  dist:TPR.subtract(1).pow(2).add(TNR.subtract(1).pow(2)).sqrt()})
+}))
+
+print("ROC", ROC);
+
+
+// Visualization of the ROC curve
+// Use trapezoidal approximation for area under curve (AUC)
+var X = ee.Array(ROC.aggregate_array('FPR')), 
+    Y = ee.Array(ROC.aggregate_array('TPR')), 
+    Xk_m_Xkm1 = X.slice(0,1).subtract(X.slice(0,0,-1)),
+    Yk_p_Ykm1 = Y.slice(0,1).add(Y.slice(0,0,-1)),
+    AUC = Xk_m_Xkm1.multiply(Yk_p_Ykm1).multiply(0.5).reduce('sum',[0]).abs().toList().get(0)
+print(AUC,'Area under curve')
+// Plot the ROC curve
+print(ui.Chart.feature.byFeature(ROC, 'FPR', 'TPR').setOptions({
+      title: 'ROC curve',
+      legend: 'none',
+      hAxis: { title: 'False-positive-rate'},
+      vAxis: { title: 'True-negative-rate'},
+      lineWidth: 1}))
+// find the cutoff value whose ROC point is closest to (0,1) (= "perfect classification")      
+var ROC_best = ROC.sort('dist').first().get('cutoff');//.aside(print,'best ROC point cutoff');
+
+```
+
+
+
+
+
+<!-- 
 
 <!-- 
 <center>
@@ -413,4 +460,5 @@ In this tutorial we used supervised classification to build a forest change map 
 The [full script](https://code.earthengine.google.com/b2032d825436fe7e8018c3b64610cd89) for this tutorial is online. To learn more about Earth Engine complete the [Introduction to Earth Engine tutorial](https://developers.google.com/earth-engine/tutorials) if you haven't already. Then consult the [Earth Engine Guides](https://developers.google.com/earth-engine/), which provides excellent tutorials on all the major funcationality of Earth Engine. Finally, if at any point you get stuck, try reaching out to the [Earth Engine Google Group](https://groups.google.com/forum/#!forum/google-earth-engine-developers) for help.
 
 
+ -->
  -->
