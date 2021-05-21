@@ -6,7 +6,7 @@ output:
 ---
 This tutorial assumes people have basic knowledge about Google Earth Engine code editor.
 
-## Load imagery
+### Load imagery
 
 In this tutorial, we will produce/output a bi-weekly time-series (2018-2020) of water masks with each band representing a binary water mask. The goal for generating this time-series water masks is to monitoring the water changes bi-weekly from 2018 to 2020. The satellite imageries are from sentinel 2. The study area is in the western region of Lesotho. To do so, we need satellite imagery of the study region for the bi-weekly image composite from 2018 to 2020. 
 
@@ -210,7 +210,7 @@ var waterBinaries = Sentinel2idxCollection.map(selectSWI).map(function(image){
 ```
 
 
-## To export the binary time-series water masks
+### To export the binary time-series water masks
 
 The below function helps you to output one image, with each band represent one time-stamp water mask.
 
@@ -228,9 +228,78 @@ Export.image.toDrive({image: waterImage,
                       formatOptions: {cloudOptimized: true}
 }); //1191858690
 ```
-<!-- 
-Earth Engine provides a tool for drawing polygons directly on the map, which we'll use to delineate polygons for each of the four classes. The goal is to capture as much of the variability within the class and possible, so we'll try for 4-6 polygons for each class capturing the full diversity of the class. To start, click on the polygon tool on the top left corner of the map, which creates a new polygon layer.
 
+## Generating ROC
+
+In this section, the scripts below are used to find the optimal SWI threshold value to distinguish water and non-water categories. The ROC curve is also created to evaluate the threshold value. 
+
+First, import the water sample polygons and non-water sample polygons that are manually digitized.
+
+```javascript
+
+var wpoly = ee.FeatureCollection(water);
+var fpoly = ee.FeatureCollection(farmland);
+
+```
+
+Second, randomly generating 500 points from the current water samples, and 500 points from the non-water samples. Then, combine the two data layer. This data layer will be used to calculate true positive rater and false positive rate to generate the ROC. 
+
+```javascript
+
+// Create buffer distance around points
+function bufferPoints(radius, bounds) {
+  return function(pt) {
+    pt = ee.Feature(pt);
+    return bounds ? pt.buffer(radius).bounds() : pt.buffer(radius);
+  };
+}
+
+// -----------------------------------------------------------------------------
+// Finding the optimal threshold value and generating ROC for one image
+
+// Create random points for water, the data is used the find the optimal threshod to
+// distinguish water and non-water
+var rd_points_water = ee.FeatureCollection.randomPoints(wpoly,500, 0, 10)
+                                          .map(function(feat)
+                                                  {return feat.set('ld_type','water')}
+                                                );//.set('ld_type','water');
+var ptsBuff_water = rd_points_water.map(bufferPoints(10, false));
+
+print("rd_points_water", rd_points_water);
+Map.addLayer(rd_points_water,{}, 'Points');
+
+
+
+// Create random points for farmland
+var rd_points_fl = ee.FeatureCollection.randomPoints(fpoly,500, 0, 10)
+                                        .map(function(feat)
+                                                  {return feat.set('ld_type','farmland')}
+                                                );
+var ptsBuff_fl = rd_points_fl.map(bufferPoints(10, false));
+print("rd_points_fl", rd_points_fl);
+Map.addLayer(rd_points_fl,{}, 'Points')
+
+
+var combinedPointCollection = ptsBuff_water.merge(ptsBuff_fl);
+print("combinedPointCollection", combinedPointCollection);
+
+```
+Third, 
+
+
+```javascript
+// Choosing the first SWI layer in the image collection
+var SWIindex = Sentinel2idxCollection.select(["SWI"]).first();
+
+
+// Sample input points.
+var waterd = SWIindex.reduceRegions(ptsBuff_water,ee.Reducer.max().setOutputs(['SWI']),10).map(function(x){return x.set('is_target',1);})
+var nonwaterd = SWIindex.reduceRegions(ptsBuff_fl,ee.Reducer.max().setOutputs(['SWI']),10).map(function(x){return x.set('is_target',0);})
+var combined = waterd.merge(nonwaterd);
+
+```
+
+<!-- 
 <center>
 ![](images/polygon-tool.png)
 </center>
@@ -342,5 +411,6 @@ In this case, our accuracy was quite good across all the classes, however, note 
 In this tutorial we used supervised classification to build a forest change map for a single Landsat scene in Brazil. However, this only scratches the surface of what's possible with Earth Engine. We could have extended our analysis to include a much larger region or to study land change in a different geographic location or biome. And, the applications aren't limited to land-cover change in the context of conservation, Earth Engine is broadly applicable to any task requiring analysis of spatiotemporal trends on the Earth's surface.
 
 The [full script](https://code.earthengine.google.com/b2032d825436fe7e8018c3b64610cd89) for this tutorial is online. To learn more about Earth Engine complete the [Introduction to Earth Engine tutorial](https://developers.google.com/earth-engine/tutorials) if you haven't already. Then consult the [Earth Engine Guides](https://developers.google.com/earth-engine/), which provides excellent tutorials on all the major funcationality of Earth Engine. Finally, if at any point you get stuck, try reaching out to the [Earth Engine Google Group](https://groups.google.com/forum/#!forum/google-earth-engine-developers) for help.
+
 
  -->
