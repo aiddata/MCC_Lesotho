@@ -229,7 +229,7 @@ Export.image.toDrive({image: waterImage,
 
 
 
-## Generating ROC
+### Generating ROC
 
 In this section, the scripts below are used to find the optimal SWI threshold value to distinguish water and non-water categories. The ROC curve is also created to evaluate the threshold value. 
 
@@ -453,4 +453,4 @@ The [full script](https://code.earthengine.google.com/b2032d825436fe7e8018c3b646
 
 
  -->
- -->
+ 
