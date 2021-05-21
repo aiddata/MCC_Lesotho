@@ -284,10 +284,6 @@ print("rd_points_fl", rd_points_fl);
 Map.addLayer(rd_points_fl,{}, 'Points')
 
 
-var combinedPointCollection = ptsBuff_water.merge(ptsBuff_fl);
-print("combinedPointCollection", combinedPointCollection);
-
-
 // Choosing the first SWI layer in the image collection
 var SWIindex = Sentinel2idxCollection.select(["SWI"]).first();
 
@@ -305,7 +301,7 @@ Third, below functions are used to generate the ROC curve, and to calculate the 
 // -----------------------------------------------------------
 
 // Define the ROC range and relevant values
-var ROC_field = 'SWI', ROC_min = -1, ROC_max = 1, ROC_steps = 100, ROC_points = combinedPointCollection
+var ROC_field = 'SWI', ROC_min = -1, ROC_max = 1, ROC_steps = 100, ROC_points = combined
 
 var ROC = ee.FeatureCollection(ee.List.sequence(ROC_min, ROC_max, null, ROC_steps).map(function (cutoff) {
   var target_roc = ROC_points.filterMetadata('is_target','equals',1);
