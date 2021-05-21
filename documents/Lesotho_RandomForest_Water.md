@@ -1,4 +1,4 @@
-## Extracting a time-series water masks using the optimal SWI values - Lesotho
+## Extracting a time-series water masks using Random Forest - Lesotho
 
 This tutorial assumes people have basic knowledge about Google Earth Engine code editor.
 
@@ -31,7 +31,7 @@ function getBiweeklySentinelComposite(date) {
 var region = ee.Geometry.Rectangle(27.248340, -29.632341, 27.416364, -29.750510);
 
 // Define time range
-var startDate = '2019-01-01'
+var startDate = '2018-01-01'
 var endDate = '2020-01-01'
 var biweekDifference = ee.Date(startDate).advance(2, 'week').millis().subtract(ee.Date(startDate).millis());
 var listMap = ee.List.sequence(ee.Date(startDate).millis(), ee.Date(endDate).millis(), biweekDifference);
@@ -46,7 +46,12 @@ var sentinel2 = ee.ImageCollection.fromImages(listMap.map(function(dateMillis){
 ```
 
 ### Creating indices for each image composite in the stacked image collection sentinel2.
-Each of the index function is independently generated. In this case, we are only going to use the SWI, other functions are copied below for records. The generated Sentinel2idxCollection is an image collection with all indices added to each image in the stacked image collection. 
+Each of the index function is independently generated. In this case, we are going to use the SWI, NDWI, NDDI, together with all the other bands to create a random forest classification model. There are four water indices created in the script, however, after analyzing the collinearity between the four water indices, SWI, NDWI, NDDI, and NDPI in script xxxx, we found the high correlation value between the SWI and NDPI. Thus, we only include SWI to create the random forest model. The functions that are used to generate other indices also included in the script snippet for records. The generated Sentinel2idxCollection is an image collection with all indices added to each image in the stacked image collection. 
+
+For water body detection, the NDWI uses green band and NIR band, while the NDPI uses green band and SWIR. According to the sentinel 2 spectral bands, the central wavelength of NIR is 832 nm with bandwidth 106 nm, and the central wavelength for SWIR is 1613 with bandwidth 91 nm. From the water spectral signature (the dotted line on the bottom in the figure), water has a higher reflectance on the band with wavelength 400-600 and gradually decreases from 600-1000, until later close to 0. The author who first combined SWIR and green band to calculate NDWI was to estimate the water content of vegetation canopy rather than detecting water bodies.
+
+This might also explain why NDPI and SWI are highly correlated, since the difference between SWI and NDPI is that the SWI uses Red Edge 1 with SWIR and the NDPI uses green band with SWIR. The central wavelength of Red Edge 1 is 704nm with bandwidth 15nm, while the central wavelength of green band is 559 nm with bandwidth 36nm.  
+
 
 ```javascript
 
