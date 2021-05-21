@@ -1,9 +1,5 @@
-<!-- ---
-# "Extracting a time-series water masks using the optimal SWI values - Lesotho"
-output:
-  html_document:
-    keep_md: true
---- -->
+# Extracting a time-series water masks using the optimal SWI values - Lesotho
+
 This tutorial assumes people have basic knowledge about Google Earth Engine code editor.
 
 ### Load imagery
