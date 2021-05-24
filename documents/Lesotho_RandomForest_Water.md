@@ -197,6 +197,11 @@ In this section, we
 
 ```javascript
 
+// Bands info: B2-Blue-10m; B3-Green-10m; B4-Red-10m; B5:RedEdge1; B6:RedEdge2; B7:RedEdge3;
+// B8:NIR-10m; B9:Narrow NIR; B10:Water Vapor-60m; B10:SWIR-cirrus-60m; B111:SWIR1; B12:SWIR2
+
+var bandlist = ['SWI','NDWI','NDDI','B2','B3','B4','B5','B6','B7','B8','B8A','B9','B11','B12']//, 'B2','B3','B4','B5','B6','B7','B8','B8A','B9','B11','B12'];
+
 
 // Extracting features for the input points
 // Checking on the detailed parameter description:
