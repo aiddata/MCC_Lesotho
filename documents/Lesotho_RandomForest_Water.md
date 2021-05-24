@@ -192,8 +192,9 @@ var Sentinel2idxCollection = sentinel2
 ```
 
 ### Training sample collection for random forest
-In this section, we 
+In this section, we are going to create a list of random points from the digitized water and non-water polygons, these random points will be used as training data for training the random forest algorithm.
 
+First, define the bands that will be used in the model prediction.
 
 ```javascript
 
@@ -201,76 +202,13 @@ In this section, we
 // B8:NIR-10m; B9:Narrow NIR; B10:Water Vapor-60m; B10:SWIR-cirrus-60m; B111:SWIR1; B12:SWIR2
 
 var bandlist = ['SWI','NDWI','NDDI','B2','B3','B4','B5','B6','B7','B8','B8A','B9','B11','B12']//, 'B2','B3','B4','B5','B6','B7','B8','B8A','B9','B11','B12'];
+```
+Second, randomly generating 500 points from water samples, and 500 points from non-water samples. These 1000 random points will be used as our training data for model generalization. The output combinedPointCollection is a feature collection with 1000 sample points.
 
+```javascript
 
-// Extracting features for the input points
-// Checking on the detailed parameter description:
-
-function zonalStats(ic, fc, params) {
-  // Initialize internal params dictionary.
-  var _params = {
-    reducer: ee.Reducer.mean(),
-    scale: null,
-    crs: null,
-    bands: null,
-    bandsRename: null,
-    imgProps: null,
-    imgPropsRename: null,
-    datetimeName: 'datetime',
-    datetimeFormat: 'YYYY-MM-dd HH:MM:ss'
-  };
-
-  // Replace initialized params with provided params.
-  if (params) {
-    for (var param in params) {
-      _params[param] = params[param] || _params[param];
-    }
-  }
-
-  // Set default parameters based on an image representative.
-  var imgRep = ic.first();
-  var nonSystemImgProps = ee.Feature(null)
-    .copyProperties(imgRep).propertyNames();
-  if (!_params.bands) _params.bands = imgRep.bandNames();
-  if (!_params.bandsRename) _params.bandsRename = _params.bands;
-  if (!_params.imgProps) _params.imgProps = nonSystemImgProps;
-  if (!_params.imgPropsRename) _params.imgPropsRename = _params.imgProps;
-
-  // Map the reduceRegions function over the image collection.
-  var results = ic.map(function(img) {
-    // Select bands (optionally rename), set a datetime & timestamp property.
-    img = ee.Image(img.select(_params.bands, _params.bandsRename))
-      .set(_params.datetimeName, img.date().format(_params.datetimeFormat))
-      .set('timestamp', img.get('system:time_start'));
-
-    // Define final image property dictionary to set in output features.
-    var propsFrom = ee.List(_params.imgProps)
-      .cat(ee.List([_params.datetimeName, 'timestamp']));
-    var propsTo = ee.List(_params.imgPropsRename)
-      .cat(ee.List([_params.datetimeName, 'timestamp']));
-    var imgProps = img.toDictionary(propsFrom).rename(propsFrom, propsTo);
-
-    // Subset points that intersect the given image.
-    var fcSub = fc.filterBounds(img.geometry());
-
-    // Reduce the image by regions.
-    return img.reduceRegions({
-      collection: fcSub,
-      reducer: _params.reducer,
-      scale: _params.scale,
-      crs: _params.crs
-    })
-    // Add metadata to each feature.
-    .map(function(f) {
-      return f.set(imgProps);
-    });
-  }).flatten().filter(ee.Filter.notNull(_params.bandsRename));
-
-  return results;
-}
-
-
-
+var wpoly = ee.FeatureCollection(water);
+var fpoly = ee.FeatureCollection(farmland);
 
 // Create random points for water, training samples
 var rd_points_water = ee.FeatureCollection.randomPoints(wpoly,500, 0, 10)
@@ -280,7 +218,6 @@ var rd_points_water = ee.FeatureCollection.randomPoints(wpoly,500, 0, 10)
 var ptsBuff_water = rd_points_water.map(bufferPoints(10, false));
 
 print("rd_points_water", rd_points_water);
-// Map.addLayer(rd_points_water,{}, 'Points');
 
 
 // Create random points for farmland extraction
@@ -290,8 +227,6 @@ var rd_points_fl = ee.FeatureCollection.randomPoints(fpoly,500, 0, 10)
                                                 );
 var ptsBuff_fl = rd_points_fl.map(bufferPoints(10, false));
 print("rd_points_fl", rd_points_fl);
-//Map.addLayer(rd_points_fl,{}, 'Points')
-
 
 
 var combinedPointCollection = ptsBuff_water.merge(ptsBuff_fl);
@@ -299,44 +234,94 @@ print("combinedPointCollection", combinedPointCollection);
 
 Map.addLayer(combinedPointCollection);
 
+```
 
-// Define parameters for the zonalStats function.
-var params = {
-  reducer: ee.Reducer.median(),
-  scale: 10,
-  crs:'EPSG:32735',//crs: 'EPSG:5070'
-  bands: bandlist,
-  datetimeName: 'date',
-  datetimeFormat: 'YYYY-MM-dd'
-};
-//['NDVI', 'RedEdge1', 'GNDVI', 'SRRE', 'NDWI', 'SWI', 'NDPI', 'NDDI', 'BSI', 'BRIGHTI']
+### Building a random forest classification
+
+The random forest classification is
+
+We use the first image in the image collection Sentinel2idxCollection as an example to illustrate the process to construct a random forest model.
+
+```javascript
+
+// Start working on Random Forest
+// ---------------------------------------------------------------------------
+
+// Random forest for one image
+var time1=Sentinel2idxCollection.first();
+
+// Sample the input imagery to get a FeatureCollection of training data.
+var training = time1.select(bandlist).sampleRegions({
+  collection: combinedPointCollection, 
+  properties: ['ld_type'],
+  scale: 10
+});
 
 
-// Extract zonal statistics per point per image.
-var ptsSentinelStats = zonalStats(Sentinel2idxCollection, combinedPointCollection, params);
-//print(ptsSentinelStats.limit(50));
+// Make a Random Forest classifier and train it with sample data.
+var classifier = ee.Classifier.smileRandomForest(5)
+    .setOutputMode('PROBABILITY')
+    .train({
+      features: training,
+      classProperty: 'ld_type',
+      inputProperties: bandlist
+    });
 
-Map.centerObject(wpoly);
+// Classify the input imagery.
+//var classified = input.classify(classifier);
+
+print(classifier);
+
+// Classify the input imagery.
+var classified = time1.select(bandlist).classify(classifier);
+
+// Define a palette for the Land Use classification.
+var palette = [
+  'D3D3D3', // water (0)  // grey
+  '0000FF', // non-water (1)  // blue
+];
+
+// Display the classification result and the input image.
+print("classification output", classified);
+Map.addLayer(classified.clip(region), {min: 0, max: 2, palette: palette}, 'Land Use Classification');
 
 ```
 
-### To export the binary time-series water masks
+### Finding the optimal probability threshold for random forest classification (ROC).
 
-The below function helps you to output one image, with each band represent one time-stamp water mask.
+
+
+
+### Using the optimal probability as threshold value in determing the classification result.
+
+
+
+
+### Generating a binary classification map.
+
+
+
+### Accuracy Assessment using testing data.
+
+
+
+### Evaluating the model (Variable importance.)
+
+
+
+
+### Export the binary classification result, and probability result.
+
+
+
+
+
+
+
 
 ```javascript
-var waterImage = newCollectionToImage(waterBinaries);
 
-Export.image.toDrive({image: waterImage,
-                      description: 'WaterMasks_SWI_ThresholdsOut',
-                      folder:'MCC_Lesotho',
-                      scale: 10,
-                      region: region,
-                      fileFormat: 'GeoTiff',
-                      crs: 'EPSG:3857',
-                      maxPixels: 1808828538,
-                      formatOptions: {cloudOptimized: true}
-}); //1191858690
+
 ```
 
 ### Accuracy Assessment
@@ -458,15 +443,10 @@ var ROC_best = ROC.sort('dist').first().get('cutoff');//.aside(print,'best ROC p
 ![](images/polygon-tool.png)
 </center>
 
-Now click on the gear icon next to this new layer and fill in the details as highlighter in the image below. This layer will be for the first class: forest unchanged between 2001 and 2011. You need to give it a name ("forest"), set the type as "Feature" rather than Geometry, and add a new "class"" attribute (this will be class 0).
 
 <center>
 ![](images/define-feature.png)
 </center>
-
-Now use all three layers of satellite imagery to identify regions that remain forest throughout the study period and create some polygons delineating these areas. Keep your polygons small and remember to capture the diversity within this class. Once you're done with this class, move on to the to the other classes, making sure to create a new layer for each and fill out the correct information in the layer properties. Call your layers: forest, forestLoss, nonforest, and forestGain.
-
-Once you're done, scroll up to the top of the code editor and you'll see a new section where these polygon layers are imported. Be sure to save your code at this point so you don't loose these polygons!
 
 <center>
 ![](images/polygon-tool.png)
