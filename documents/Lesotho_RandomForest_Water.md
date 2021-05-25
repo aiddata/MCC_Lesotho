@@ -361,7 +361,7 @@ Map.addLayer(binaryClass);
 
 ```
 
-### Evaluating the model (Variable importance.)
+### Variable importance
 
 Below script is used to generate the variable importance map for your random forest classifier. You can see how much each band contributes to your random forest classifier.
 
