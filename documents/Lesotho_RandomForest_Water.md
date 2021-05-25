@@ -201,7 +201,7 @@ First, define the bands that will be used in the model prediction.
 // Bands info: B2-Blue-10m; B3-Green-10m; B4-Red-10m; B5:RedEdge1; B6:RedEdge2; B7:RedEdge3;
 // B8:NIR-10m; B9:Narrow NIR; B10:Water Vapor-60m; B10:SWIR-cirrus-60m; B111:SWIR1; B12:SWIR2
 
-var bandlist = ['SWI','NDWI','NDDI','B2','B3','B4','B5','B6','B7','B8','B8A','B9','B11','B12']//, 'B2','B3','B4','B5','B6','B7','B8','B8A','B9','B11','B12'];
+var bandlist = ['SWI','NDWI','NDDI','B2','B3','B4','B5','B6','B7','B8','B8A','B9','B11','B12'];
 ```
 Second, randomly generating 500 points from water samples, and 500 points from non-water samples. These 1000 random points will be used as our training data for model generalization. The output combinedPointCollection is a feature collection with 1000 sample points.
 
@@ -238,9 +238,9 @@ Map.addLayer(combinedPointCollection);
 
 ### Building a random forest classification
 
-The random forest classification is
+We use the first image in the image collection Sentinel2idxCollection as an example to illustrate the process to construct a random forest model for an image classification. We now have our imagery and our training data and it's time to run the random forests classification.
 
-We use the first image in the image collection Sentinel2idxCollection as an example to illustrate the process to construct a random forest model.
+The code below generates the random forest classifier to predict the probability of the occurency of water. The classified layer is a probability map, which you can visualize the result by adding the layer to the map.
 
 ```javascript
 
@@ -288,116 +288,35 @@ Map.addLayer(classified.clip(region), {min: 0, max: 2, palette: palette}, 'Land 
 ```
 
 ### Finding the optimal probability threshold for random forest classification (ROC).
-
-
-
-
-### Using the optimal probability as threshold value in determing the classification result.
-
-
-
-
-### Generating a binary classification map.
-
-
-
-### Accuracy Assessment using testing data.
-
-
-
-### Evaluating the model (Variable importance.)
-
-
-
-
-### Export the binary classification result, and probability result.
-
-
-
-
-
-
-
-
-```javascript
-
-
-```
-
-### Accuracy Assessment
-
-
-
-
-### Generating ROC
-
 In this section, the scripts below are used to find the optimal SWI threshold value to distinguish water and non-water categories. The ROC curve is also created to evaluate the threshold value. 
 
-First, import the water sample polygons and non-water sample polygons that are manually digitized.
+First, use the water samples and non-water samples you generated earlier to create a combined feature collection, this feature collection indicates the classification "probability" value of each sample data you used for training. You can check the feature properties by print the data out.
 
 ```javascript
-
-var wpoly = ee.FeatureCollection(water);
-var fpoly = ee.FeatureCollection(farmland);
-
-```
-
-Second, randomly generating 500 points from the current water samples, and 500 points from the non-water samples. Then, combine the two data layer. This data layer will be used to calculate true positive rater and false positive rate to generate the ROC. 
-
-```javascript
-
-// Create buffer distance around points
-function bufferPoints(radius, bounds) {
-  return function(pt) {
-    pt = ee.Feature(pt);
-    return bounds ? pt.buffer(radius).bounds() : pt.buffer(radius);
-  };
-}
-
-// -----------------------------------------------------------------------------
-// Finding the optimal threshold value and generating ROC for one image
-
-// Create random points for water, the data is used the find the optimal threshod to
-// distinguish water and non-water
-var rd_points_water = ee.FeatureCollection.randomPoints(wpoly,500, 0, 10)
-                                          .map(function(feat)
-                                                  {return feat.set('ld_type','water')}
-                                                );//.set('ld_type','water');
-var ptsBuff_water = rd_points_water.map(bufferPoints(10, false));
-
-print("rd_points_water", rd_points_water);
-Map.addLayer(rd_points_water,{}, 'Points');
-
-
-
-// Create random points for farmland
-var rd_points_fl = ee.FeatureCollection.randomPoints(fpoly,500, 0, 10)
-                                        .map(function(feat)
-                                                  {return feat.set('ld_type','farmland')}
-                                                );
-var ptsBuff_fl = rd_points_fl.map(bufferPoints(10, false));
-print("rd_points_fl", rd_points_fl);
-Map.addLayer(rd_points_fl,{}, 'Points')
-
-
-// Choosing the first SWI layer in the image collection
-var SWIindex = Sentinel2idxCollection.select(["SWI"]).first();
-
+// Finding the optimal probability value to classify water and non-water cases.
 // Sample input points.
-var waterd = SWIindex.reduceRegions(ptsBuff_water,ee.Reducer.max().setOutputs(['SWI']),10).map(function(x){return x.set('is_target',1);})
-var nonwaterd = SWIindex.reduceRegions(ptsBuff_fl,ee.Reducer.max().setOutputs(['SWI']),10).map(function(x){return x.set('is_target',0);})
+var waterd = classified.reduceRegions(rd_points_water,ee.Reducer.max().setOutputs(['classification']),10).map(function(x){return x.set('is_target',1);})
+var nonwaterd = classified.reduceRegions(rd_points_fl,ee.Reducer.max().setOutputs(['classification']),10).map(function(x){return x.set('is_target',0);})
 var combined = waterd.merge(nonwaterd);
 
+
+// Show random forest probability of points
+print(waterd.aggregate_array('classification'),'Water probability');
+print(nonwaterd.aggregate_array('classification'),'Non-Water probability');
+
+print("combined", combined);
 ```
-Third, below functions are used to generate the ROC curve, and to calculate the best ROC value. 
+
+Second, similar to the index value threshold analysis, below functions are used to generate the ROC curve, and to calculate the best ROC value (different from the threshold analysis, the "threshold" here is the probability value rather than the index value. The index of SWI ranges from -1 to 1. Here, the probability value ranges from 0-1). 
 
 ```javascript
 
 // Calculate the Receiver Operating Characteristic (ROC) curve
 // -----------------------------------------------------------
 
-// Define the ROC range and relevant values
-var ROC_field = 'SWI', ROC_min = -1, ROC_max = 1, ROC_steps = 100, ROC_points = combined
+// Chance these as needed
+var ROC_field = 'classification', ROC_min = 0, ROC_max = 1, ROC_steps = 500, ROC_points = combined
+
 
 var ROC = ee.FeatureCollection(ee.List.sequence(ROC_min, ROC_max, null, ROC_steps).map(function (cutoff) {
   var target_roc = ROC_points.filterMetadata('is_target','equals',1);
@@ -412,7 +331,6 @@ var ROC = ee.FeatureCollection(ee.List.sequence(ROC_min, ROC_max, null, ROC_step
 print("ROC", ROC);
 
 
-// Visualization of the ROC curve
 // Use trapezoidal approximation for area under curve (AUC)
 var X = ee.Array(ROC.aggregate_array('FPR')), 
     Y = ee.Array(ROC.aggregate_array('TPR')), 
@@ -427,8 +345,86 @@ print(ui.Chart.feature.byFeature(ROC, 'FPR', 'TPR').setOptions({
       hAxis: { title: 'False-positive-rate'},
       vAxis: { title: 'True-negative-rate'},
       lineWidth: 1}))
+
 // find the cutoff value whose ROC point is closest to (0,1) (= "perfect classification")      
-var ROC_best = ROC.sort('dist').first().get('cutoff');//.aside(print,'best ROC point cutoff');
+var ROC_best = ROC.sort('dist').first().get('cutoff').aside(print,'best ROC point cutoff');
+```
+
+### Using the optimal probability as threshold value in determing the classification result.
+
+The ROC_best is the optimal probability value that uses to distinguish water and non-water cases. You will use this value to create a binary water mask as the output. The optimal probability value is about 0.488 for the selected image, so we use this probability value as the cutting point to produce a binary water mask. You can add the generated layer to your map.
+
+```javascript
+// Generating a binary classification map
+var binaryClass = classified.select("classification").gte(0.488);
+Map.addLayer(binaryClass);
+
+```
+
+### Evaluating the model (Variable importance.)
+
+Below script is used to generate the variable importance map for your random forest classifier. You can see how much each band contributes to your random forest classifier.
+
+// Generating the variable importance chart
+// ------------------------------------------------------------------------
+var dict = classifier.explain();
+print('Explain:',dict);
+
+var variable_importance = ee.Feature(null, ee.Dictionary(dict).get('importance'));
+ 
+var chart =
+ui.Chart.feature.byProperty(variable_importance)
+.setChartType('ColumnChart')
+.setOptions({
+title: 'Random Forest Variable Importance',
+legend: {position: 'none'},
+hAxis: {title: 'Bands'},
+vAxis: {title: 'Importance'}
+});
+
+print(chart);
+
+```
+
+
+### Accuracy Assessment using testing data.
+
+```javascript
+
+```
+
+
+### Export the binary classification result, and probability result.
+
+The following code is used to export the binary classification map and probability layer you produced.
+
+```javascript
+
+// Exporting the probability and the binary classification result
+
+Export.image.toDrive({image: classified,
+                      description: 'Water_probability_RF',
+                      folder:'MCC_Lesotho',
+                      scale: 10,
+                      region: region,
+                      fileFormat: 'GeoTiff',
+                      crs: 'EPSG:3857',
+                      maxPixels: 1808828538,
+                      formatOptions: {cloudOptimized: true}
+}); //1191858690
+
+
+Export.image.toDrive({image: binaryClass,
+                      description: 'Water_binary_RF',
+                      folder:'MCC_Lesotho',
+                      scale: 10,
+                      region: region,
+                      fileFormat: 'GeoTiff',
+                      crs: 'EPSG:3857',
+                      maxPixels: 1808828538,
+                      formatOptions: {cloudOptimized: true}
+}); //1191858690
+
 
 ```
 
