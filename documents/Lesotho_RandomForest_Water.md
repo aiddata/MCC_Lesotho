@@ -365,6 +365,7 @@ Map.addLayer(binaryClass);
 
 Below script is used to generate the variable importance map for your random forest classifier. You can see how much each band contributes to your random forest classifier.
 
+```javascript
 // Generating the variable importance chart
 // ------------------------------------------------------------------------
 var dict = classifier.explain();
@@ -385,7 +386,6 @@ vAxis: {title: 'Importance'}
 print(chart);
 
 ```
-
 
 ### Accuracy Assessment using testing data.
 
