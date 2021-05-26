@@ -4,7 +4,7 @@ This tutorial assumes people have basic knowledge about Google Earth Engine code
 
 ### Load imagery
 
-In this tutorial, we will produce/output a bi-weekly time-series (2018-2019) of water masks with each band representing a binary water mask. The goal for generating this time-series water masks is to monitoring the water changes bi-weekly from 2018 to 2020. The satellite imageries are from sentinel 2. The study area is in the western region of Lesotho. To do so, we need satellite imagery of the study region for the bi-weekly image composite from 2018 to 2020. 
+In this tutorial, we will produce/output a bi-weekly time-series (2018-2019) of water masks with each band representing a binary water mask. The goal for generating this time-series water masks is to monitoring the water changes bi-weekly from 2018 to 2019. The satellite imageries are from sentinel 2. The study area is in the western region of Lesotho. To do so, we need satellite imagery of the study region for the bi-weekly image composite from 2018 to 2019. 
 
 To understand the detail of this dataset we are using in this write-up, find the description [here](https://developers.google.com/earth-engine/datasets/catalog/COPERNICUS_S2_SR#description).
 
