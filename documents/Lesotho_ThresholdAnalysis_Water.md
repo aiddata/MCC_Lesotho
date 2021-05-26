@@ -194,7 +194,7 @@ The output variable waterBinaries is an image collection of SWI images. Each SWI
 ```javascript
 
 function selectSWI(image){
-  return image.select('SWI').gte(-0.19191919191919182).copyProperties(image, ["system:time_start"])
+  return image.select('SWI').gte(-0.1717).copyProperties(image, ["system:time_start"])
 }
 
 var waterBinaries = Sentinel2idxCollection.map(selectSWI).map(function(image){
