@@ -209,11 +209,17 @@ Second, randomly generating 500 points from water samples, and 500 points from n
 
 ```javascript
 
-var wpoly = ee.FeatureCollection(water);
-var fpoly = ee.FeatureCollection(farmland);
+// Defining the input data
+// --------------------------------------------------------------------
 
+var wtrain = ee.FeatureCollection(train_water);
+var ftrain = ee.FeatureCollection(train_fl);
+
+
+// Define training data
+// -----------------------------------------------------------------------------
 // Create random points for water, training samples
-var rd_points_water = ee.FeatureCollection.randomPoints(wpoly,500, 0, 10)
+var rd_points_water = ee.FeatureCollection.randomPoints(wtrain,500, 0, 10)
                                           .map(function(feat)
                                                   {return feat.set('ld_type',1)}
                                                 );//.set('ld_type','water');
@@ -223,7 +229,7 @@ print("rd_points_water", rd_points_water);
 
 
 // Create random points for farmland extraction
-var rd_points_fl = ee.FeatureCollection.randomPoints(fpoly,500, 0, 10)
+var rd_points_fl = ee.FeatureCollection.randomPoints(ftrain,500, 0, 10)
                                         .map(function(feat)
                                                   {return feat.set('ld_type',0)}
                                                 );
@@ -235,6 +241,8 @@ var combinedPointCollection = ptsBuff_water.merge(ptsBuff_fl);
 print("combinedPointCollection", combinedPointCollection);
 
 Map.addLayer(combinedPointCollection);
+
+
 
 ```
 
@@ -252,6 +260,7 @@ The code below generates the random forest classifier to predict the probability
 // Random forest for one image
 var time1=Sentinel2idxCollection.first();
 
+
 // Sample the input imagery to get a FeatureCollection of training data.
 var training = time1.select(bandlist).sampleRegions({
   collection: combinedPointCollection, 
@@ -260,7 +269,9 @@ var training = time1.select(bandlist).sampleRegions({
 });
 
 
-// Make a Random Forest classifier and train it with sample data.
+print("training", training);
+
+// Make a Random Forest classifier and train it.
 var classifier = ee.Classifier.smileRandomForest(5)
     .setOutputMode('PROBABILITY')
     .train({
@@ -269,13 +280,11 @@ var classifier = ee.Classifier.smileRandomForest(5)
       inputProperties: bandlist
     });
 
-// Classify the input imagery.
-//var classified = input.classify(classifier);
 
-print(classifier);
 
 // Classify the input imagery.
 var classified = time1.select(bandlist).classify(classifier);
+
 
 // Define a palette for the Land Use classification.
 var palette = [
@@ -285,7 +294,8 @@ var palette = [
 
 // Display the classification result and the input image.
 print("classification output", classified);
-Map.addLayer(classified.clip(region), {min: 0, max: 2, palette: palette}, 'Land Use Classification');
+Map.addLayer(classified.clip(region), {min: 0, max: 1, palette: palette}, 'Water probability');
+
 
 ```
 
@@ -295,6 +305,7 @@ In this section, the scripts below are used to find the optimal SWI threshold va
 First, use the water samples and non-water samples you generated earlier to create a combined feature collection, this feature collection indicates the classification "probability" value of each sample data you used for training. You can check the feature properties by print the data out.
 
 ```javascript
+
 // Finding the optimal probability value to classify water and non-water cases.
 // Sample input points.
 var waterd = classified.reduceRegions(rd_points_water,ee.Reducer.max().setOutputs(['classification']),10).map(function(x){return x.set('is_target',1);})
@@ -307,11 +318,13 @@ print(waterd.aggregate_array('classification'),'Water probability');
 print(nonwaterd.aggregate_array('classification'),'Non-Water probability');
 
 print("combined", combined);
+
 ```
 
 Second, similar to the index value threshold analysis, below functions are used to generate the ROC curve, and to calculate the best ROC value (different from the threshold analysis, the "threshold" here is the probability value rather than the index value. The index of SWI ranges from -1 to 1. Here, the probability value ranges from 0-1). 
 
 ```javascript
+
 
 // Calculate the Receiver Operating Characteristic (ROC) curve
 // -----------------------------------------------------------
@@ -350,6 +363,7 @@ print(ui.Chart.feature.byFeature(ROC, 'FPR', 'TPR').setOptions({
 
 // find the cutoff value whose ROC point is closest to (0,1) (= "perfect classification")      
 var ROC_best = ROC.sort('dist').first().get('cutoff').aside(print,'best ROC point cutoff');
+
 ```
 
 ### Using the optimal probability as threshold value in determing the classification result.
@@ -357,8 +371,10 @@ var ROC_best = ROC.sort('dist').first().get('cutoff').aside(print,'best ROC poin
 The ROC_best is the optimal probability value that uses to distinguish water and non-water cases. You will use this value to create a binary water mask as the output. The optimal probability value is about 0.488 for the selected image, so we use this probability value as the cutting point to produce a binary water mask. You can add the generated layer to your map.
 
 ```javascript
-// Generating a binary classification map
-var binaryClass = classified.select("classification").gte(0.488);
+
+// Create a binary mask
+// -------------------------------------------------------------------
+var binaryClass = classified.select("classification").gte(0.3186);
 Map.addLayer(binaryClass);
 
 ```
@@ -391,7 +407,64 @@ print(chart);
 
 ### Accuracy Assessment using testing data.
 
+Before we make use of the map we just created it's important to know just how accurate it is. For example, if the classified map shows that water occurred in a given area, how confident can we believe that the area is actually water?
+
+A **confusion matrix** is the standard method for assessing the performance of a classification algorithm. It takes cases of known class (e.g. the training data or an independent validation data set) and compares them to their predicted class. The rows of the matrix are instances of the actual class, while the columns are instances of the predicted class. The diagonal of the matrix gives the number of correct classifications, while the off-diagonals give the number of incorrect classifications. For example, in this case we have two classes water and non-water, the matrix might look like:
+
+$$
+\begin{bmatrix}
+10 & 2\\ 
+3 & 5
+\end{bmatrix}
+$$
+
+In this example, 10 out 12 cases of class 1 were correctly classified, while 5 out of 8 cases of class 2 were correctly classified Looking at the off-diagonal components, in 2 cases class 1 was incorrectly assigned to class 2, and in 3 cases class 2 was incorrectly assigned to class 1. The overall accuracy is the total number of correct classifications as a proportion of the total number of cases, which in this case is $15 / 20 = 75\%$.
+
+To calculate the confusion matrix and overall accuracy for the binary water and non-water map add the following code to the end of your script:
+
+
 ```javascript
+
+// Defining the input data
+// --------------------------------------------------------------------
+
+var wtest = ee.FeatureCollection(test_water);
+var ftest = ee.FeatureCollection(test_fl);
+
+
+// Accuracy Assessment
+// -----------------------------------------------------------------------------
+
+// Define testing samples
+
+var waterpoly = wtest.map(function(feat)
+                          {return feat.set('ld_code',1)}
+                          );
+
+var farmpoly = ftest.map(function(feat)
+                          {return feat.set('ld_code',0)}
+                          );
+
+var allTest = waterpoly.merge(farmpoly);
+
+print("allTest", allTest);
+
+
+// Sample the classified binary data to get a FeatureCollection of testing cases
+
+var validation = binaryClass.select("classification").sampleRegions({
+  collection: allTest,
+  properties: ['ld_code'],
+  scale: 10
+});
+
+
+print("validation", validation);
+
+// Get a confusion matrix representing expected accuracy.
+var testAccuracy = validation.errorMatrix("ld_code", "classification");
+print('Validation error matrix: ', testAccuracy);
+print('Validation overall accuracy: ', testAccuracy.accuracy());
 
 ```
 
