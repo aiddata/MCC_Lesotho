@@ -224,10 +224,6 @@ Export.image.toDrive({image: waterImage,
 }); //1191858690
 ```
 
-### Accuracy Assessment
-
-
-
 
 ### Generating ROC
 
@@ -237,8 +233,10 @@ First, import the water sample polygons and non-water sample polygons that are m
 
 ```javascript
 
-var wpoly = ee.FeatureCollection(water);
-var fpoly = ee.FeatureCollection(farmland);
+// Getting the data
+
+var wtrain = ee.FeatureCollection(water_train);
+var ftrain = ee.FeatureCollection(non_water_train);
 
 ```
 
@@ -254,12 +252,14 @@ function bufferPoints(radius, bounds) {
   };
 }
 
+
 // -----------------------------------------------------------------------------
 // Finding the optimal threshold value and generating ROC for one image
 
 // Create random points for water, the data is used the find the optimal threshod to
 // distinguish water and non-water
-var rd_points_water = ee.FeatureCollection.randomPoints(wpoly,500, 0, 10)
+
+var rd_points_water = ee.FeatureCollection.randomPoints(wtrain,500, 0, 10)
                                           .map(function(feat)
                                                   {return feat.set('ld_type','water')}
                                                 );//.set('ld_type','water');
@@ -271,7 +271,7 @@ Map.addLayer(rd_points_water,{}, 'Points');
 
 
 // Create random points for farmland
-var rd_points_fl = ee.FeatureCollection.randomPoints(fpoly,500, 0, 10)
+var rd_points_fl = ee.FeatureCollection.randomPoints(ftrain,500, 0, 10)
                                         .map(function(feat)
                                                   {return feat.set('ld_type','farmland')}
                                                 );
@@ -280,13 +280,16 @@ print("rd_points_fl", rd_points_fl);
 Map.addLayer(rd_points_fl,{}, 'Points')
 
 
+
 // Choosing the first SWI layer in the image collection
-var SWIindex = Sentinel2idxCollection.select(["SWI"]).first();
+var SWIindex = Sentinel2idxCollection.select("SWI").first();
+
 
 // Sample input points.
 var waterd = SWIindex.reduceRegions(ptsBuff_water,ee.Reducer.max().setOutputs(['SWI']),10).map(function(x){return x.set('is_target',1);})
 var nonwaterd = SWIindex.reduceRegions(ptsBuff_fl,ee.Reducer.max().setOutputs(['SWI']),10).map(function(x){return x.set('is_target',0);})
 var combined = waterd.merge(nonwaterd);
+
 
 ```
 Third, below functions are used to generate the ROC curve, and to calculate the best ROC value. 
@@ -332,9 +335,74 @@ var ROC_best = ROC.sort('dist').first().get('cutoff');//.aside(print,'best ROC p
 
 ```
 
+### Accuracy Assessment
+
+Before we make use of the map we just created it's important to know just how accurate it is. For example, if the classified map shows that water occurred in a given area, how confident can we believe that the area is actually water?
+
+A **confusion matrix** is the standard method for assessing the performance of a classification algorithm. It takes cases of known class (e.g. the training data or an independent validation data set) and compares them to their predicted class. The rows of the matrix are instances of the actual class, while the columns are instances of the predicted class. The diagonal of the matrix gives the number of correct classifications, while the off-diagonals give the number of incorrect classifications. For example, in this case we have two classes water and non-water, the matrix might look like:
+
+$$
+\begin{bmatrix}
+10 & 2\\ 
+3 & 5
+\end{bmatrix}
+$$
+
+In this example, 10 out 12 cases of class 1 were correctly classified, while 5 out of 8 cases of class 2 were correctly classified Looking at the off-diagonal components, in 2 cases class 1 was incorrectly assigned to class 2, and in 3 cases class 2 was incorrectly assigned to class 1. The overall accuracy is the total number of correct classifications as a proportion of the total number of cases, which in this case is $15 / 20 = 75\%$.
+
+In this case, we randomly choose 20 sample points from the testing water layer, and 20 sample points from the testing non-water layer. We use these 40 samples as testing cases to create the confusion matrix. You can increase this number based on how you construct your testing data. To calculate the confusion matrix and overall accuracy for the binary water and non-water map add the following code to the end of your script:
+
+```javascript
+
+// Getting the testing data
+
+var wtest = ee.FeatureCollection(water_test);
+var ftest = ee.FeatureCollection(non_water_test);
 
 
+// Accuracy Assessment
+//----------------------------------------------------------------------------
 
+// Sample the testing data from the testing layers.
+
+var test_points_water = ee.FeatureCollection.randomPoints(wtest,20, 0, 10)
+                                          .map(function(feat)
+                                                  {return feat.set('ld_type','water')}
+                                                );//.set('ld_type','water');
+var testbuff_water = test_points_water.map(bufferPoints(10, false));
+
+
+var test_points_fl = ee.FeatureCollection.randomPoints(ftest,20, 0, 10)
+                                        .map(function(feat)
+                                                  {return feat.set('ld_type','farmland')}
+                                                );
+var testbuff_fl = test_points_fl.map(bufferPoints(10, false));
+
+
+// Sample input points.
+var watertest = SWIindex.reduceRegions(testbuff_water,ee.Reducer.max().setOutputs(['SWI']),10).map(function(x){return x.set('is_target',1);})
+var nonwatertest = SWIindex.reduceRegions(testbuff_fl,ee.Reducer.max().setOutputs(['SWI']),10).map(function(x){return x.set('is_target',0);})
+var validation = watertest.merge(nonwatertest);
+
+
+var target = validation.filterMetadata('is_target','equals',1);
+var TP = ee.Number(target.filterMetadata('SWI','greater_than',-0.1717).size());
+var non_target = validation.filterMetadata('is_target','equals',0);
+var TN = ee.Number(non_target.filterMetadata('SWI','less_than',-0.1717).size());
+
+var FN = ee.Number(target.filterMetadata('SWI', 'less_than', -0.1717).size());
+var FP = ee.Number(non_target.filterMetadata('SWI', 'greater_than', -0.1717).size());
+
+var valerror = ee.List([[TP, FN], [FP, TN]]);
+
+print("Validation error matrix", valerror);
+
+var overallAccuracy = TP.add(TN).divide(TP.add(FN).add(FP).add(TN));
+
+print("Validation overallAccuracy", overallAccuracy);
+
+
+```
 
 <!-- 
 
