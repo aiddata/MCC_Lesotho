@@ -368,7 +368,7 @@ var ROC_best = ROC.sort('dist').first().get('cutoff').aside(print,'best ROC poin
 
 ### Using the optimal probability as threshold value in determing the classification result.
 
-The ROC_best is the optimal probability value that uses to distinguish water and non-water cases. You will use this value to create a binary water mask as the output. The optimal probability value is about 0.488 for the selected image, so we use this probability value as the cutting point to produce a binary water mask. You can add the generated layer to your map.
+The ROC_best is the optimal probability value that uses to distinguish water and non-water cases. You will use this value to create a binary water mask as the output. The optimal probability value is about 0.3186 for the selected image, so we use this probability value as the cutting point to produce a binary water mask. You can add the generated layer to your map.
 
 ```javascript
 
