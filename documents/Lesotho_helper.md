@@ -70,7 +70,7 @@ print("NDVICollection", NDVICollection);
 ```
 
 
-![The visualization of index trends](images/ROC.png)
+![The visualization of index trends](../images/ROC.png)
 
 
 
