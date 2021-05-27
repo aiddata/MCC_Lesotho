@@ -69,6 +69,11 @@ var NDVICollection = filteredCollection.map(getNDVI);
 print("NDVICollection", NDVICollection);
 ```
 
+
+![The visualization of index trends](images/ROC.png)
+
+
+
 Get all the point coordinates within the farmland polygon.
 
 ```javascript
