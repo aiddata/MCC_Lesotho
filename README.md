@@ -1,5 +1,8 @@
 # MCC_Lesotho
 
+Documents:
+A list of documents walk you through the developed GEE scripts.
+
 Data:
 - WaterPolyPtsTS.csv sample points for water pixels. This includes the data for 18 time-stamp images.
 - SoilPolyPtsTS.csv
