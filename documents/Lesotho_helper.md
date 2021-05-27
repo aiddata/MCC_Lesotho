@@ -70,10 +70,6 @@ print("NDVICollection", NDVICollection);
 ```
 
 
-![The visualization of index trends](../images/ROC.png)
-
-
-
 Get all the point coordinates within the farmland polygon.
 
 ```javascript
@@ -126,6 +122,9 @@ print("Feature chart");
 print(graph);
 ```
 
+![The visualization of index trends](../images/pixel_trend.png)
+
+
 ### Tracking the NDVI min/max/mean/stdDev value change overtime for a given area
 
 The code below is used to create the min/max/mean/stdDev trend overtime.
@@ -161,6 +160,7 @@ print("chart", chart);
 
 ```
 
+![Index statistics trend](../images/index_sta.png)
 
 
 
