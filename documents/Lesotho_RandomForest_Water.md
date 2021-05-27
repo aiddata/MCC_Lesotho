@@ -1,10 +1,8 @@
 ## Extracting a time-series water masks using Random Forest - Lesotho
 
-This tutorial assumes people have basic knowledge about Google Earth Engine code editor.
+In this tutorial, we will produce/output a bi-weekly time-series (2018-2019) of water masks with each band representing a binary water mask. The goal for generating this time-series water masks is to monitoring the water changes bi-weekly from 2018 to 2019. The satellite imageries are from sentinel 2. The study area is in the western region of Lesotho. To do so, we need satellite imagery of the study region for the bi-weekly image composite from 2018 to 2019.
 
 ### Load imagery
-
-In this tutorial, we will produce/output a bi-weekly time-series (2018-2019) of water masks with each band representing a binary water mask. The goal for generating this time-series water masks is to monitoring the water changes bi-weekly from 2018 to 2019. The satellite imageries are from sentinel 2. The study area is in the western region of Lesotho. To do so, we need satellite imagery of the study region for the bi-weekly image composite from 2018 to 2019. 
 
 To understand the detail of this dataset we are using in this write-up, find the description [here](https://developers.google.com/earth-engine/datasets/catalog/COPERNICUS_S2_SR#description).
 
@@ -366,6 +364,13 @@ var ROC_best = ROC.sort('dist').first().get('cutoff').aside(print,'best ROC poin
 
 ```
 
+
+*Note: The chart is used for visualization purpose, to get the variable importance chart for any selected image, please select the image you used to create this ROC chart.
+![The visualization of index trends](../images/ROC.png)
+
+
+
+
 ### Using the optimal probability as threshold value in determing the classification result.
 
 The ROC_best is the optimal probability value that uses to distinguish water and non-water cases. You will use this value to create a binary water mask as the output. The optimal probability value is about 0.3186 for the selected image, so we use this probability value as the cutting point to produce a binary water mask. You can add the generated layer to your map.
@@ -378,11 +383,6 @@ var binaryClass = classified.select("classification").gte(0.3186);
 Map.addLayer(binaryClass);
 
 ```
-
-*Note: The chart is used for visualization purpose, to get the variable importance chart for any selected image, please select the image you used to create this ROC chart.
-![The visualization of index trends](../images/ROC.png)
-
-
 
 
 ### Variable importance
