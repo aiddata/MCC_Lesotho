@@ -193,7 +193,7 @@ The output variable waterBinaries is an image collection of SWI images. Each SWI
 ```javascript
 
 function selectSWI(image){
-  return image.select('SWI').gte(-0.1717).copyProperties(image, ["system:time_start"])
+  return image.select('SWI').gte(-0.1919).copyProperties(image, ["system:time_start"])
 }
 
 var waterBinaries = Sentinel2idxCollection.map(selectSWI).map(function(image){
@@ -387,12 +387,12 @@ var validation = watertest.merge(nonwatertest);
 
 
 var target = validation.filterMetadata('is_target','equals',1);
-var TP = ee.Number(target.filterMetadata('SWI','greater_than',-0.1717).size());
+var TP = ee.Number(target.filterMetadata('SWI','greater_than',-0.1919).size());
 var non_target = validation.filterMetadata('is_target','equals',0);
-var TN = ee.Number(non_target.filterMetadata('SWI','less_than',-0.1717).size());
+var TN = ee.Number(non_target.filterMetadata('SWI','less_than',-0.1919).size());
 
-var FN = ee.Number(target.filterMetadata('SWI', 'less_than', -0.1717).size());
-var FP = ee.Number(non_target.filterMetadata('SWI', 'greater_than', -0.1717).size());
+var FN = ee.Number(target.filterMetadata('SWI', 'less_than', -0.1919).size());
+var FP = ee.Number(non_target.filterMetadata('SWI', 'greater_than', -0.1919).size());
 
 var valerror = ee.List([[TP, FN], [FP, TN]]);
 
