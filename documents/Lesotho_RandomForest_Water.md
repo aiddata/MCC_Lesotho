@@ -423,6 +423,8 @@ A **confusion matrix** is the standard method for assessing the performance of a
 
 ![The visualization of index trends](../images/ConfusionMatrics.png)
 
+[Chart Source](https://www.dataschool.io/simple-guide-to-confusion-matrix-terminology/)
+
 In this example, 50 out 60 cases of class 1 were correctly classified, while 100 out of 105 cases of class 2 were correctly classified Looking at the off-diagonal components, in 10 cases class 1 was incorrectly assigned to class 2, and in 5 cases class 2 was incorrectly assigned to class 1. The overall accuracy is the total number of correct classifications as a proportion of the total number of cases, which in this case is 150 / 165 = 91%.
 
 To calculate the confusion matrix and overall accuracy for the binary water and non-water map add the following code to the end of your script:
