@@ -335,20 +335,20 @@ var ROC_best = ROC.sort('dist').first().get('cutoff');//.aside(print,'best ROC p
 
 ```
 
+*Note: The chart is used for visualization purpose, to get the variable importance chart for any selected image, please select the image you used to create this ROC chart.
+![The visualization of index trends](../images/ROC.png)
+
+
 ### Accuracy Assessment
 
 Before we make use of the map we just created it's important to know just how accurate it is. For example, if the classified map shows that water occurred in a given area, how confident can we believe that the area is actually water?
 
 A **confusion matrix** is the standard method for assessing the performance of a classification algorithm. It takes cases of known class (e.g. the training data or an independent validation data set) and compares them to their predicted class. The rows of the matrix are instances of the actual class, while the columns are instances of the predicted class. The diagonal of the matrix gives the number of correct classifications, while the off-diagonals give the number of incorrect classifications. For example, in this case we have two classes water and non-water, the matrix might look like:
 
-$$
-\begin{bmatrix}
-10 & 2\\ 
-3 & 5
-\end{bmatrix}
-$$
 
-In this example, 10 out 12 cases of class 1 were correctly classified, while 5 out of 8 cases of class 2 were correctly classified Looking at the off-diagonal components, in 2 cases class 1 was incorrectly assigned to class 2, and in 3 cases class 2 was incorrectly assigned to class 1. The overall accuracy is the total number of correct classifications as a proportion of the total number of cases, which in this case is $15 / 20 = 75\%$.
+![The visualization of index trends](../images/ConfusionMatrics.png)
+
+In this example, 50 out 60 cases of class 1 were correctly classified, while 100 out of 105 cases of class 2 were correctly classified Looking at the off-diagonal components, in 10 cases class 1 was incorrectly assigned to class 2, and in 5 cases class 2 was incorrectly assigned to class 1. The overall accuracy is the total number of correct classifications as a proportion of the total number of cases, which in this case is 150 / 165 = 91%.
 
 In this case, we randomly choose 20 sample points from the testing water layer, and 20 sample points from the testing non-water layer. We use these 40 samples as testing cases to create the confusion matrix. You can increase this number based on how you construct your testing data. To calculate the confusion matrix and overall accuracy for the binary water and non-water map add the following code to the end of your script:
 
