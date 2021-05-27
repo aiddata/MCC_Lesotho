@@ -1,24 +1,32 @@
-## Extracting a time-series water masks using the optimal SWI values - Lesotho
+## Pixel level trends and Drawing the mix/max/mean trends of given area (Visualization)
 
 This tutorial assumes people have basic knowledge about Google Earth Engine code editor.
 
-### Load imagery
+### Pixel level NDVI trend
 
-In this tutorial, we will produce/output a bi-weekly time-series (2018-2019) of water masks with each band representing a binary water mask. The goal for generating this time-series water masks is to monitoring the water changes bi-weekly from 2018 to 2019. The satellite imageries are from sentinel 2. The study area is in the western region of Lesotho. To do so, we need satellite imagery of the study region for the bi-weekly image composite from 2018 to 2019. 
+In this tutorial, it includes creating visualization chart to check on the trends of index change. We use the NDVI as an example to illustrate the code, you can define your own index and plot the chart.
 
-To understand the detail of this dataset we are using in this write-up, find the description [here](https://developers.google.com/earth-engine/datasets/catalog/COPERNICUS_S2_SR#description).
+First, we want to check on how does each pixel in a given study area (e.g. farmland) change overtime. In this way, we can track on the seasonal changes, strange un-expected index change overtime. 
 
-This block of code is to load the bi-weekly data from sentinel 2, with the cloud cover less than or equal to 1%.
+Create the NDVI image collection. Read the random forest and threshold analysis tutorial to understand the below code.
 
 ```javascript
 
-// Creating bi-weekly image
+// Mapping the NDVI trends per pixels in a given area
+// Add the polygon data
+
+var poly = fpoly;
+print(poly);
+
+// Define the study area
+
+var region = ee.Geometry.Rectangle(27.248340, -29.632341, 27.416364, -29.750510);
 
 function getBiweeklySentinelComposite(date) {
         
         var sentinel2 = ee.ImageCollection('COPERNICUS/S2_SR')
                             .filterBounds(region)
-                            .filterDate(date, date.advance(2, 'week'))
+                            .filterDate(date, date.advance(6, 'week'))
                             .filterMetadata('CLOUD_COVERAGE_ASSESSMENT', 'not_greater_than', 1);
         
         var composite = sentinel2.median()
@@ -27,382 +35,129 @@ function getBiweeklySentinelComposite(date) {
         return composite;
       }
 
-// Define the working region geometry
-var region = ee.Geometry.Rectangle(27.248340, -29.632341, 27.416364, -29.750510);
 
-// Define time range
-var startDate = '2018-01-01'
-var endDate = '2019-01-01'
-var biweekDifference = ee.Date(startDate).advance(2, 'week').millis().subtract(ee.Date(startDate).millis());
+function getNDVI(scene){
+  // get a string representation of the date.
+  var dateString = ee.Date(scene.get('system:time_start')).format('yyyy-MM-dd');
+  var ndvi = scene.normalizedDifference(['B8', 'B4']).rename('NDVI');//.rename(dateString);
+  return ndvi.copyProperties(scene,['system:time_start','dateYMD']);
+}
+
+
+// Define the data range
+
+var startDate = '2019-01-01'
+var endDate = '2020-01-01'
+var biweekDifference = ee.Date(startDate).advance(6, 'week').millis().subtract(ee.Date(startDate).millis());
 var listMap = ee.List.sequence(ee.Date(startDate).millis(), ee.Date(endDate).millis(), biweekDifference);
 
-
-// Get biweekly sentinel2 for the date between start and end date
+// Get biweekly sentinel2 data
 var sentinel2 = ee.ImageCollection.fromImages(listMap.map(function(dateMillis){
   var date = ee.Date(dateMillis);
   return getBiweeklySentinelComposite(date);
 }));
 
-```
-
-### Creating indices for each image composite in the stacked image collection sentinel2.
-Each of the index function is independently generated. In this case, we are only going to use the SWI, other functions are copied below for records. The generated Sentinel2idxCollection is an image collection with all indices added to each image in the stacked image collection. 
-
-```javascript
-
-// Functions to add selected indices to the sentinel2 images
-// -----------------------------------------------------------------------------
-      
-// Bands info: B2-Blue-10m; B3-Green-10m; B4-Red-10m; B5:RedEdge1; B6:RedEdge2; B7:RedEdge3;
-// B8:NIR-10m; B9:Narrow NIR; B10:Water Vapor-60m; B10:SWIR-cirrus-60m; B111:SWIR1; B12:SWIR2
-
-// VEGETATION INDICES (4)
-//---------------------
-      
-function addNDVI(image) {
-  // NDVI
-  var ndvi = image.normalizedDifference(['B8', 'B4']).rename('NDVI')
-                  .copyProperties(image,['system:time_start','system:time_end']);
-  return image.addBands(ndvi).clip(region);
-}
-
-      
-function addREdge1(image){
-  // Red Edge1 NDVI: (B8-B5)/(B8+B5)
-  var redge1 = image.normalizedDifference(['B8', 'B5']).rename('RedEdge1');
-  return image.addBands(redge1).clip(region);
-}
-      
-      
-function addGNDVI(image){
-  // GNDVI: green normalzied difference vegetation
-  var gndvi = image.normalizedDifference(['B8', 'B3']).rename('GNDVI');
-  return image.addBands(gndvi).clip(region);
-}
-      
-      
-function addSRRE(image) {
-  // SRRE: Simple ratio red edge
-  var srre = image.expression('B8/B5',{
-    'B8': image.select('B8'),
-    'B5': image.select('B5')
-    }).rename('SRRE');
-    return image.addBands(srre).clip(region);
-}
-      
-
-// WATER INDEX (4)
-//---------------------
-      
-function addNDWI(image) {
-  // NDWI, sensitive the buil-ups
-  var ndwi = image.normalizedDifference(['B3', 'B8']).rename('NDWI');
-  return image.addBands(ndwi).clip(region);
-}
-      
-      
-function addSWI(image) {
-  // SWI
-  var swi = image.normalizedDifference(['B5', 'B11']).rename('SWI');
-  return image.addBands(swi).clip(region);
-}
-
-
-function addNDDI(image) {
-  // NDDI: normalized difference drought
-  // (NDVI − NDWI)∕(NDVI + NDWI)
-  var nddi = image.expression('(((B8-B4)/(B8+B4))-((B3-B8)/(B3+B8)))/(((B8-B4)/(B8+B4))+((B3-B8)/(B3+B8)))',{
-    'B8': image.select('B8'),
-    'B4': image.select('B4'),
-    'B3': image.select('B3')
-    }).rename('NDDI');
-        
-    return image.addBands(nddi).clip(region);
-}
-      
-function addNDPI(image){
-    // NDPI: normalized difference pond
-    // (SWIR-G)/(SWIR+G)
-    var ndpi = image.normalizedDifference(['B11', 'B3']).rename('NDPI');
-    return image.addBands(ndpi).clip(region);
-}
-
-function addSWM(image){
-        // SWM: sentinel water mask
-        // (B2+B3)/(B8+B11)
-        var swm = image.expression('(B2+B3)/(B8+B11)',{
-          'B2': image.select('B2'),
-          'B3': image.select('B3'),
-          'B8': image.select('B8'),
-          'B11': image.select('B11')
-        }).rename('SWM');
-        return image.addBands(swm).clip(region);
-      }
-      
-      
-// SOIL INDEX (3)
-//---------------------
-function addBSI(image) {
-  // Bare soil index: (B11+B4)-(B8+B2)/(B11+B4)+(B8+B2)
-  var bsi = image.expression('((B11+B4)-(B8+B2))/((B11+B4)+(B8+B2))',{
-    'B11': image.select('B11'),
-    'B4': image.select('B4'),
-    'B8': image.select('B8'),
-    'B2': image.select('B2')
-    }).rename('BSI');
-    return image.addBands(bsi).clip(region);
-}
-      
-      
-function addBright(image){
-    // BRIGHTNESS INDEX
-    //sqrt(((Red * Red)/ (Green* Green))/2)
-    var brightI = image.expression('sqrt(((B4*B4)/(B3*B3))/2)',{
-      'B3': image.select('B3'),
-      'B4': image.select('B4')
-      }).rename('BRIGHTI');
-    return image.addBands(brightI).clip(region);
-}
-
-// Filter out the image that have cloud > 1% cover
-// Add the indices to each image in the collection
-var Sentinel2idxCollection = sentinel2
+// Filter out non-band images
+var filteredCollection = sentinel2
     .map(function(image) {
       return image.set('count', image.bandNames().length())
     })
     .filter(ee.Filter.eq('count', 23))
-    .map(addNDVI)
-    .map(addREdge1)
-    .map(addGNDVI)
-    .map(addSRRE)
-    .map(addNDWI)
-    .map(addSWI)
-    .map(addNDPI)
-    .map(addSWM)
-    .map(addNDDI)
-    .map(addBSI)
-    .map(addBright);
 
+
+var NDVICollection = filteredCollection.map(getNDVI);
+print("NDVICollection", NDVICollection);
 ```
 
-### Creating a binary water masks using the optimal SWI value. 
-
-The optimal SWI value is analyzed outside of the GEE environment using python code xxxx and the alloints.csv file in the data folder. From the analysis, each time band image has the same optimal SWI for generating the best classification overall accuracy. The value is xxx, this value is used to create the binary masks. Any SWI value of the SWI band greater than this threshold value will be considered as water, the value below this value is non-water.
-
-The output variable waterBinaries is an image collection of SWI images. Each SWI image has one band named "SWI". In order for better understanding and easy analysis outside of the GEE environment, the band is renamed by its system time.
+Get all the point coordinates within the farmland polygon.
 
 ```javascript
 
-function selectSWI(image){
-  return image.select('SWI').gte(-0.1717).copyProperties(image, ["system:time_start"])
-}
-
-var waterBinaries = Sentinel2idxCollection.map(selectSWI).map(function(image){
-  var dateString = ee.Date(image.get('system:time_start')).format('yyyy-MM-dd');
-  var swi = image.select('SWI').rename(dateString)
-  .copyProperties(image,['system:time_start','system:time_end']);
-  return swi;
-});
-```
-
-### To export the binary time-series water masks
-
-The below function helps you to output one image, with each band represent one time-stamp water mask.
-
-```javascript
-var waterImage = newCollectionToImage(waterBinaries);
-
-Export.image.toDrive({image: waterImage,
-                      description: 'WaterMasks_SWI_ThresholdsOut',
-                      folder:'MCC_Lesotho',
-                      scale: 10,
-                      region: region,
-                      fileFormat: 'GeoTiff',
-                      crs: 'EPSG:3857',
-                      maxPixels: 1808828538,
-                      formatOptions: {cloudOptimized: true}
-}); //1191858690
-```
+// get coordinates image
+var latlon = ee.Image.pixelLonLat();//.reproject(proj);
 
 
-### Generating ROC
+// put each lon lat in a list
+var coords = latlon.select(['longitude', 'latitude'])
+                 .reduceRegion({
+                    reducer: ee.Reducer.toList(),
+                    geometry: poly,
+                    scale: 10
+                  });
 
-In this section, the scripts below are used to find the optimal SWI threshold value to distinguish water and non-water categories. The ROC curve is also created to evaluate the threshold value. 
+// get lat & lon
+var lat = ee.List(coords.get('latitude'));
+var lon = ee.List(coords.get('longitude'));
+var point_list = lon.zip(lat);
 
-First, import the water sample polygons and non-water sample polygons that are manually digitized.
+// Create points
+var mp = ee.Geometry.MultiPoint(point_list);
 
-```javascript
-
-// Getting the data
-
-var wtrain = ee.FeatureCollection(water_train);
-var ftrain = ee.FeatureCollection(non_water_train);
-
-```
-
-Second, randomly generating 500 points from the current water samples, and 500 points from the non-water samples. Then, combine the two data layer. This data layer will be used to calculate true positive rater and false positive rate to generate the ROC. 
-
-```javascript
-
-// Create buffer distance around points
-function bufferPoints(radius, bounds) {
-  return function(pt) {
-    pt = ee.Feature(pt);
-    return bounds ? pt.buffer(radius).bounds() : pt.buffer(radius);
-  };
-}
-
-
-// -----------------------------------------------------------------------------
-// Finding the optimal threshold value and generating ROC for one image
-
-// Create random points for water, the data is used the find the optimal threshod to
-// distinguish water and non-water
-
-var rd_points_water = ee.FeatureCollection.randomPoints(wtrain,500, 0, 10)
-                                          .map(function(feat)
-                                                  {return feat.set('ld_type','water')}
-                                                );//.set('ld_type','water');
-var ptsBuff_water = rd_points_water.map(bufferPoints(10, false));
-
-print("rd_points_water", rd_points_water);
-Map.addLayer(rd_points_water,{}, 'Points');
-
-
-
-// Create random points for farmland
-var rd_points_fl = ee.FeatureCollection.randomPoints(ftrain,500, 0, 10)
-                                        .map(function(feat)
-                                                  {return feat.set('ld_type','farmland')}
-                                                );
-var ptsBuff_fl = rd_points_fl.map(bufferPoints(10, false));
-print("rd_points_fl", rd_points_fl);
-Map.addLayer(rd_points_fl,{}, 'Points')
-
-
-
-// Choosing the first SWI layer in the image collection
-var SWIindex = Sentinel2idxCollection.select("SWI").first();
-
-
-// Sample input points.
-var waterd = SWIindex.reduceRegions(ptsBuff_water,ee.Reducer.max().setOutputs(['SWI']),10).map(function(x){return x.set('is_target',1);})
-var nonwaterd = SWIindex.reduceRegions(ptsBuff_fl,ee.Reducer.max().setOutputs(['SWI']),10).map(function(x){return x.set('is_target',0);})
-var combined = waterd.merge(nonwaterd);
-
-
-```
-Third, below functions are used to generate the ROC curve, and to calculate the best ROC value. 
-
-```javascript
-
-// Calculate the Receiver Operating Characteristic (ROC) curve
-// -----------------------------------------------------------
-
-// Define the ROC range and relevant values
-var ROC_field = 'SWI', ROC_min = -1, ROC_max = 1, ROC_steps = 100, ROC_points = combined
-
-var ROC = ee.FeatureCollection(ee.List.sequence(ROC_min, ROC_max, null, ROC_steps).map(function (cutoff) {
-  var target_roc = ROC_points.filterMetadata('is_target','equals',1);
-  // true-positive-rate, sensitivity  
-  var TPR = ee.Number(target_roc.filterMetadata(ROC_field,'greater_than',cutoff).size()).divide(target_roc.size());
-  var non_target_roc = ROC_points.filterMetadata('is_target','equals',0);
-  // true-negative-rate, specificity  
-  var TNR = ee.Number(non_target_roc.filterMetadata(ROC_field,'less_than',cutoff).size()).divide(non_target_roc.size());
-  return ee.Feature(null,{cutoff: cutoff, TPR: TPR, TNR: TNR, FPR:TNR.subtract(1).multiply(-1),  dist:TPR.subtract(1).pow(2).add(TNR.subtract(1).pow(2)).sqrt()})
+var mpCollection = ee.FeatureCollection(point_list.map(function(p){
+  var point = ee.Feature(ee.Geometry.Point(p), {});
+  return point;
 }))
 
-print("ROC", ROC);
+print("mpCollection", mpCollection);
 
-
-// Visualization of the ROC curve
-// Use trapezoidal approximation for area under curve (AUC)
-var X = ee.Array(ROC.aggregate_array('FPR')), 
-    Y = ee.Array(ROC.aggregate_array('TPR')), 
-    Xk_m_Xkm1 = X.slice(0,1).subtract(X.slice(0,0,-1)),
-    Yk_p_Ykm1 = Y.slice(0,1).add(Y.slice(0,0,-1)),
-    AUC = Xk_m_Xkm1.multiply(Yk_p_Ykm1).multiply(0.5).reduce('sum',[0]).abs().toList().get(0)
-print(AUC,'Area under curve')
-// Plot the ROC curve
-print(ui.Chart.feature.byFeature(ROC, 'FPR', 'TPR').setOptions({
-      title: 'ROC curve',
-      legend: 'none',
-      hAxis: { title: 'False-positive-rate'},
-      vAxis: { title: 'True-negative-rate'},
-      lineWidth: 1}))
-// find the cutoff value whose ROC point is closest to (0,1) (= "perfect classification")      
-var ROC_best = ROC.sort('dist').first().get('cutoff');//.aside(print,'best ROC point cutoff');
-
+Map.addLayer(mp,{}, 'Points');
+Map.centerObject(poly);
+Map.addLayer(NDVICollection.first().clip(region));
 ```
 
-### Accuracy Assessment
-
-Before we make use of the map we just created it's important to know just how accurate it is. For example, if the classified map shows that water occurred in a given area, how confident can we believe that the area is actually water?
-
-A **confusion matrix** is the standard method for assessing the performance of a classification algorithm. It takes cases of known class (e.g. the training data or an independent validation data set) and compares them to their predicted class. The rows of the matrix are instances of the actual class, while the columns are instances of the predicted class. The diagonal of the matrix gives the number of correct classifications, while the off-diagonals give the number of incorrect classifications. For example, in this case we have two classes water and non-water, the matrix might look like:
-
-$$
-\begin{bmatrix}
-10 & 2\\ 
-3 & 5
-\end{bmatrix}
-$$
-
-In this example, 10 out 12 cases of class 1 were correctly classified, while 5 out of 8 cases of class 2 were correctly classified Looking at the off-diagonal components, in 2 cases class 1 was incorrectly assigned to class 2, and in 3 cases class 2 was incorrectly assigned to class 1. The overall accuracy is the total number of correct classifications as a proportion of the total number of cases, which in this case is $15 / 20 = 75\%$.
-
-In this case, we randomly choose 20 sample points from the testing water layer, and 20 sample points from the testing non-water layer. We use these 40 samples as testing cases to create the confusion matrix. You can increase this number based on how you construct your testing data. To calculate the confusion matrix and overall accuracy for the binary water and non-water map add the following code to the end of your script:
+Creating the trend chart.
 
 ```javascript
 
-// Getting the testing data
-
-var wtest = ee.FeatureCollection(water_test);
-var ftest = ee.FeatureCollection(non_water_test);
-
-
-// Accuracy Assessment
-//----------------------------------------------------------------------------
-
-// Sample the testing data from the testing layers.
-
-var test_points_water = ee.FeatureCollection.randomPoints(wtest,20, 0, 10)
-                                          .map(function(feat)
-                                                  {return feat.set('ld_type','water')}
-                                                );//.set('ld_type','water');
-var testbuff_water = test_points_water.map(bufferPoints(10, false));
+var graph = ui.Chart.image.seriesByRegion({
+  imageCollection: NDVICollection, 
+  regions: mpCollection,
+  reducer: ee.Reducer.mean(),
+  scale:10
+});
 
 
-var test_points_fl = ee.FeatureCollection.randomPoints(ftest,20, 0, 10)
-                                        .map(function(feat)
-                                                  {return feat.set('ld_type','farmland')}
-                                                );
-var testbuff_fl = test_points_fl.map(bufferPoints(10, false));
+print("Feature chart");
+print(graph);
+```
+
+### Tracking the NDVI min/max/mean/stdDev value change overtime for a given area
+
+The code below is used to create the min/max/mean/stdDev trend overtime.
+
+```javascript
+
+// Tracking the max/mean/min/stdDev value trends of the given area
+// ---------------------------------------
+
+// Index comparison time series (draw mean, max, min, sd)
+
+var farmIndices = NDVICollection.select(['NDVI']);
+print("NDVI index", farmIndices);
 
 
-// Sample input points.
-var watertest = SWIindex.reduceRegions(testbuff_water,ee.Reducer.max().setOutputs(['SWI']),10).map(function(x){return x.set('is_target',1);})
-var nonwatertest = SWIindex.reduceRegions(testbuff_fl,ee.Reducer.max().setOutputs(['SWI']),10).map(function(x){return x.set('is_target',0);})
-var validation = watertest.merge(nonwatertest);
+var feats = farmIndices.map(function(image){
+  //.combine(ee.Reducer.percentile([25,75],["25","75"]), '', true)
+  var reducers = ee.Reducer.mean().combine(ee.Reducer.max(), '', true).combine(ee.Reducer.min(), '', true).combine(ee.Reducer.stdDev(),'',true);
+  var stats = image.clip(fpoly)
+                   .reduceRegion(reducers, region, 10);
+  
+  return ee.Feature(null, stats).set('system:time_start', image.get('system:time_start'));
+
+});
 
 
-var target = validation.filterMetadata('is_target','equals',1);
-var TP = ee.Number(target.filterMetadata('SWI','greater_than',-0.1717).size());
-var non_target = validation.filterMetadata('is_target','equals',0);
-var TN = ee.Number(non_target.filterMetadata('SWI','less_than',-0.1717).size());
+var chart = ui.Chart.feature.byFeature(feats, 'system:time_start')
+                //.setSeriesNames(['max', 'mean', 'min']);
 
-var FN = ee.Number(target.filterMetadata('SWI', 'less_than', -0.1717).size());
-var FP = ee.Number(non_target.filterMetadata('SWI', 'greater_than', -0.1717).size());
 
-var valerror = ee.List([[TP, FN], [FP, TN]]);
-
-print("Validation error matrix", valerror);
-
-var overallAccuracy = TP.add(TN).divide(TP.add(FN).add(FP).add(TN));
-
-print("Validation overallAccuracy", overallAccuracy);
-
+print("feats", feats);
+print("chart", chart);
 
 ```
+
+
+
 
 <!-- 
 
