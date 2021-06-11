@@ -482,6 +482,14 @@ To create a time-series water mask and probability output.
 
 ```javascript
 
+function selectVal(image){
+  // return image.updateMask(image.gte(-0.19191919191919182));
+  // var test = image.select('SWI').set('system:time_start', image.get('system:time_start'));//.gte(-0.19191919191919182);
+  var prob = image.select('classification');
+  return prob.gte(0.318).copyProperties(image, ["system:time_start"]);
+}
+
+
 function rf(bands){
   
   var wrap = function(image){
