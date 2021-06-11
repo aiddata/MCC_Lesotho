@@ -219,7 +219,7 @@ var ftrain = ee.FeatureCollection(train_fl);
 // Create random points for water, training samples
 var rd_points_water = ee.FeatureCollection.randomPoints(wtrain,500, 0, 10)
                                           .map(function(feat)
-                                                  {return feat.set('ld_type',1)}
+                                                  {return feat.set('ld_code',1)}
                                                 );//.set('ld_type','water');
 var ptsBuff_water = rd_points_water.map(bufferPoints(10, false));
 
@@ -229,7 +229,7 @@ print("rd_points_water", rd_points_water);
 // Create random points for farmland extraction
 var rd_points_fl = ee.FeatureCollection.randomPoints(ftrain,500, 0, 10)
                                         .map(function(feat)
-                                                  {return feat.set('ld_type',0)}
+                                                  {return feat.set('ld_code',0)}
                                                 );
 var ptsBuff_fl = rd_points_fl.map(bufferPoints(10, false));
 print("rd_points_fl", rd_points_fl);
@@ -262,7 +262,7 @@ var time1=Sentinel2idxCollection.first();
 // Sample the input imagery to get a FeatureCollection of training data.
 var training = time1.select(bandlist).sampleRegions({
   collection: combinedPointCollection, 
-  properties: ['ld_type'],
+  properties: ['ld_code'],
   scale: 10
 });
 
@@ -274,7 +274,7 @@ var classifier = ee.Classifier.smileRandomForest(5)
     .setOutputMode('PROBABILITY')
     .train({
       features: training,
-      classProperty: 'ld_type',
+      classProperty: 'ld_code',
       inputProperties: bandlist
     });
 
@@ -475,6 +475,83 @@ print('Validation overall accuracy: ', testAccuracy.accuracy());
 
 ```
 
+### Time series
+
+To create a time-series water mask and probability output.
+
+
+```javascript
+
+function rf(bands){
+  
+  var wrap = function(image){
+    // Sample the input imagery to get a FeatureCollection of training data.
+    var training_lp = image.select(bands).sampleRegions({
+      collection: combinedPointCollection,
+      properties: ['ld_code'],
+      scale: 10
+    });
+    
+    // Make a Random Forest classifier and train it.
+  var classifier = ee.Classifier.smileRandomForest(5)
+    .setOutputMode('PROBABILITY')
+      .train({
+        features: training_lp,
+        classProperty: 'ld_code',
+        inputProperties: bands
+      });//['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B9', 'B11', 'SWI', 'NDWI']
+
+  
+  // Classify the input imagery.
+  var classified = image.select(bands).classify(classifier);
+  
+  return classified.copyProperties(image, ["system:time_start"]);
+  //return classified;
+  
+  };
+  
+  return wrap;
+
+}
+
+
+// ------------ A series-----------
+
+
+// Create a collection of classified output
+var classfiedCollection = Sentinel2idxCollection.map(rf(bandlist));
+
+print("classfiedCollection", classfiedCollection);
+
+var waterBinaries = classfiedCollection.map(selectVal).map(function(image){
+  var dateString = ee.Date(image.get('system:time_start')).format('yyyy-MM-dd');
+  var bi = image.select('classification').rename(dateString)
+  .copyProperties(image,['system:time_start','system:time_end']);
+  return bi;
+});
+
+print("waterBinaries", waterBinaries);
+Map.addLayer(waterBinaries.first());
+
+
+var probCollection = classfiedCollection.map(function(image){
+  var dateString = ee.Date(image.get('system:time_start')).format('yyyy-MM-dd');
+  var bi = image.select('classification').rename(dateString)
+  .copyProperties(image,['system:time_start','system:time_end']);
+  return bi;
+});
+
+
+Map.addLayer(probCollection.first());
+
+
+var waterImage = newCollectionToImage(waterBinaries);
+var probImage = newCollectionToImage(probCollection);
+
+
+```
+
+
 
 ### Export the binary classification result, and probability result.
 
@@ -482,10 +559,12 @@ The following code is used to export the binary classification map and probabili
 
 ```javascript
 
+// Data Exports
+// -----------------------------------------------------------------------
 // Exporting the probability and the binary classification result
 
-Export.image.toDrive({image: classified,
-                      description: 'Water_probability_RF',
+Export.image.toDrive({image: probImage,
+                      description: 'Water_probability_RF_2018_2021',
                       folder:'MCC_Lesotho',
                       scale: 10,
                       region: region,
@@ -496,8 +575,8 @@ Export.image.toDrive({image: classified,
 }); //1191858690
 
 
-Export.image.toDrive({image: binaryClass,
-                      description: 'Water_binary_RF',
+Export.image.toDrive({image: waterImage,
+                      description: 'Water_binary_RF_2018_2021',
                       folder:'MCC_Lesotho',
                       scale: 10,
                       region: region,
@@ -505,8 +584,7 @@ Export.image.toDrive({image: binaryClass,
                       crs: 'EPSG:3857',
                       maxPixels: 1808828538,
                       formatOptions: {cloudOptimized: true}
-}); //1191858690
-
+});
 
 ```
 
