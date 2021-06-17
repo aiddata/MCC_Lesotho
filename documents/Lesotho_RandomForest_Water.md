@@ -55,7 +55,7 @@ For water body detection, the NDWI uses green band and NIR band, while the NDPI 
 
 This might also explain why NDPI and SWI are highly correlated, since the difference between SWI and NDPI is that the SWI uses Red Edge 1 with SWIR and the NDPI uses green band with SWIR. The central wavelength of Red Edge 1 is 704nm with bandwidth 15nm, while the central wavelength of green band is 559 nm with bandwidth 36nm.
 
-For the reason that NDPI and SWI are highly correlated (~0.99), the NDPI will be ignored in the random forest construction.
+For the reason that NDPI and SWI are highly correlated (~0.99), the NDPI will not be included in the random forest construction.
 
 ```javascript
 
