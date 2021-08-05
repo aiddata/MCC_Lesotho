@@ -6,6 +6,10 @@ In this tutorial, we will produce/output a bi-weekly time-series (2018-2019) of 
 
 To understand the detail of this dataset we are using in this write-up, find the description [here](https://developers.google.com/earth-engine/datasets/catalog/COPERNICUS_S2_SR#description).
 
+Import the training, testing dataset, and the study area for later usage.
+
+![Data Import](../images/data_import.png)
+
 This block of code is to load the bi-weekly data from sentinel 2, with the cloud cover less than or equal to 1%.
 
 ```javascript
@@ -26,7 +30,7 @@ function getBiweeklySentinelComposite(date) {
       }
 
 // Define the working region geometry
-var region = ee.Geometry.Rectangle(27.248340, -29.632341, 27.416364, -29.750510);
+var region = study_area; //ee.Geometry.Rectangle(27.248340, -29.632341, 27.416364, -29.750510);
 
 // Define time range
 var startDate = '2018-01-01'
@@ -214,7 +218,7 @@ Second, randomly generating 500 points from water samples, and 500 points from n
 // --------------------------------------------------------------------
 
 var wtrain = ee.FeatureCollection(train_water);
-var ftrain = ee.FeatureCollection(train_fl);
+var ftrain = ee.FeatureCollection(non_water_train);
 
 
 // Define training data
@@ -376,13 +380,13 @@ var ROC_best = ROC.sort('dist').first().get('cutoff').aside(print,'best ROC poin
 
 ### Using the optimal probability as threshold value in determing the classification result.
 
-The ROC_best is the optimal probability value that uses to distinguish water and non-water cases. You will use this value to create a binary water mask as the output. The optimal probability value is about 0.3186 for the selected image, so we use this probability value as the cutting point to produce a binary water mask. You can add the generated layer to your map.
+The ROC_best is the optimal probability value that uses to distinguish water and non-water cases. You will use this value to create a binary water mask as the output. The optimal probability value is about 0.2424 for the selected image, so we use this probability value as the cutting point to produce a binary water mask. You can add the generated layer to your map.
 
 ```javascript
 
 // Create a binary mask
 // -------------------------------------------------------------------
-var binaryClass = classified.select("classification").gte(0.3186);
+var binaryClass = classified.select("classification").gte(0.2424);
 Map.addLayer(binaryClass);
 
 ```
@@ -439,7 +443,7 @@ To calculate the confusion matrix and overall accuracy for the binary water and 
 // --------------------------------------------------------------------
 
 var wtest = ee.FeatureCollection(test_water);
-var ftest = ee.FeatureCollection(test_fl);
+var ftest = ee.FeatureCollection(non_water_test);
 
 
 // Accuracy Assessment
@@ -489,7 +493,7 @@ function selectVal(image){
   // return image.updateMask(image.gte(-0.19191919191919182));
   // var test = image.select('SWI').set('system:time_start', image.get('system:time_start'));//.gte(-0.19191919191919182);
   var prob = image.select('classification');
-  return prob.gte(0.318).copyProperties(image, ["system:time_start"]);
+  return prob.gte(0.2424).copyProperties(image, ["system:time_start"]);
 }
 
 
