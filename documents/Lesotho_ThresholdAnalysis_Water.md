@@ -327,7 +327,7 @@ print(ui.Chart.feature.byFeature(ROC, 'FPR', 'TPR').setOptions({
       title: 'ROC curve',
       legend: 'none',
       hAxis: { title: 'False-positive-rate'},
-      vAxis: { title: 'True-negative-rate'},
+      vAxis: { title: 'True-positive-rate'},
       lineWidth: 1}))
 // find the cutoff value whose ROC point is closest to (0,1) (= "perfect classification")      
 var ROC_best = ROC.sort('dist').first().get('cutoff');//.aside(print,'best ROC point cutoff');
