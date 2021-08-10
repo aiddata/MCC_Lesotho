@@ -269,14 +269,14 @@ Map.addLayer(rd_points_water,{}, 'Points');
 
 
 
-// Create random points for farmland
-var rd_points_fl = ee.FeatureCollection.randomPoints(ftrain,500, 0, 10)
+// Create random points for non water
+var rd_points_nw = ee.FeatureCollection.randomPoints(ftrain,500, 0, 10)
                                         .map(function(feat)
-                                                  {return feat.set('ld_type','farmland')}
+                                                  {return feat.set('ld_type','nonwater')}
                                                 );
-var ptsBuff_fl = rd_points_fl.map(bufferPoints(10, false));
-print("rd_points_fl", rd_points_fl);
-Map.addLayer(rd_points_fl,{}, 'Points')
+var ptsBuff_nw = rd_points_nw.map(bufferPoints(10, false));
+print("rd_points_nw", rd_points_nw);
+Map.addLayer(rd_points_nw,{}, 'Points')
 
 
 
@@ -286,7 +286,7 @@ var SWIindex = Sentinel2idxCollection.select("SWI").first();
 
 // Sample input points.
 var waterd = SWIindex.reduceRegions(ptsBuff_water,ee.Reducer.max().setOutputs(['SWI']),10).map(function(x){return x.set('is_target',1);})
-var nonwaterd = SWIindex.reduceRegions(ptsBuff_fl,ee.Reducer.max().setOutputs(['SWI']),10).map(function(x){return x.set('is_target',0);})
+var nonwaterd = SWIindex.reduceRegions(ptsBuff_nw,ee.Reducer.max().setOutputs(['SWI']),10).map(function(x){return x.set('is_target',0);})
 var combined = waterd.merge(nonwaterd);
 
 
@@ -373,16 +373,16 @@ var test_points_water = ee.FeatureCollection.randomPoints(wtest,20, 0, 10)
 var testbuff_water = test_points_water.map(bufferPoints(10, false));
 
 
-var test_points_fl = ee.FeatureCollection.randomPoints(ftest,20, 0, 10)
+var test_points_nw = ee.FeatureCollection.randomPoints(ftest,20, 0, 10)
                                         .map(function(feat)
-                                                  {return feat.set('ld_type','farmland')}
+                                                  {return feat.set('ld_type','nonwater')}
                                                 );
-var testbuff_fl = test_points_fl.map(bufferPoints(10, false));
+var testbuff_nw = test_points_nw.map(bufferPoints(10, false));
 
 
 // Sample input points.
 var watertest = SWIindex.reduceRegions(testbuff_water,ee.Reducer.max().setOutputs(['SWI']),10).map(function(x){return x.set('is_target',1);})
-var nonwatertest = SWIindex.reduceRegions(testbuff_fl,ee.Reducer.max().setOutputs(['SWI']),10).map(function(x){return x.set('is_target',0);})
+var nonwatertest = SWIindex.reduceRegions(testbuff_nw,ee.Reducer.max().setOutputs(['SWI']),10).map(function(x){return x.set('is_target',0);})
 var validation = watertest.merge(nonwatertest);
 
 

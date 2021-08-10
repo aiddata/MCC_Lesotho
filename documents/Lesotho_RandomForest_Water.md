@@ -233,16 +233,16 @@ var ptsBuff_water = rd_points_water.map(bufferPoints(10, false));
 print("rd_points_water", rd_points_water);
 
 
-// Create random points for farmland extraction
-var rd_points_fl = ee.FeatureCollection.randomPoints(ftrain,500, 0, 10)
+// Create random points for non-water extraction
+var rd_points_nw = ee.FeatureCollection.randomPoints(ftrain,500, 0, 10)
                                         .map(function(feat)
                                                   {return feat.set('ld_code',0)}
                                                 );
-var ptsBuff_fl = rd_points_fl.map(bufferPoints(10, false));
-print("rd_points_fl", rd_points_fl);
+var ptsBuff_nw = rd_points_nw.map(bufferPoints(10, false));
+print("rd_points_nw", rd_points_nw);
 
 
-var combinedPointCollection = ptsBuff_water.merge(ptsBuff_fl);
+var combinedPointCollection = ptsBuff_water.merge(ptsBuff_nw);
 print("combinedPointCollection", combinedPointCollection);
 
 Map.addLayer(combinedPointCollection);
@@ -314,7 +314,7 @@ First, use the water samples and non-water samples you generated earlier to crea
 // Finding the optimal probability value to classify water and non-water cases.
 // Sample input points.
 var waterd = classified.reduceRegions(rd_points_water,ee.Reducer.max().setOutputs(['classification']),10).map(function(x){return x.set('is_target',1);})
-var nonwaterd = classified.reduceRegions(rd_points_fl,ee.Reducer.max().setOutputs(['classification']),10).map(function(x){return x.set('is_target',0);})
+var nonwaterd = classified.reduceRegions(rd_points_nw,ee.Reducer.max().setOutputs(['classification']),10).map(function(x){return x.set('is_target',0);})
 var combined = waterd.merge(nonwaterd);
 
 
@@ -455,11 +455,11 @@ var waterpoly = wtest.map(function(feat)
                           {return feat.set('ld_code',1)}
                           );
 
-var farmpoly = ftest.map(function(feat)
+var nwaterpoly = ftest.map(function(feat)
                           {return feat.set('ld_code',0)}
                           );
 
-var allTest = waterpoly.merge(farmpoly);
+var allTest = waterpoly.merge(nwaterpoly);
 
 print("allTest", allTest);
 
