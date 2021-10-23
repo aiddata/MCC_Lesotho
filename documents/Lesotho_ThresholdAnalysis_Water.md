@@ -1,6 +1,6 @@
 ## Extracting a time-series water masks using the optimal SWI values - Lesotho
 
-In this tutorial, we will produce/output a bi-weekly time-series (2018-2019) of water masks with each band representing a binary water mask. The goal for generating this time-series water masks is to monitoring the water changes bi-weekly from 2018 to 2019. The satellite imageries are from sentinel 2. The study area is in the western region of Lesotho. To do so, we need satellite imagery of the study region for the bi-weekly image composite from 2018 to 2019.
+In this tutorial, we will produce/output a bi-weekly time-series (2018-2021) of water masks with each band representing a binary water mask. The goal for generating this time-series water masks is to monitoring the water changes bi-weekly from 2018 to 2021. The satellite imageries are from sentinel 2. The study area is in the western region of Lesotho. To do so, we need satellite imagery of the study region for the bi-weekly image composite from 2018 to 2021.
 
 ### Load imagery
 
@@ -31,7 +31,7 @@ var region = ee.Geometry.Rectangle(27.248340, -29.632341, 27.416364, -29.750510)
 
 // Define time range
 var startDate = '2018-01-01'
-var endDate = '2019-01-01'
+var endDate = '2021-06-30'
 var biweekDifference = ee.Date(startDate).advance(2, 'week').millis().subtract(ee.Date(startDate).millis());
 var listMap = ee.List.sequence(ee.Date(startDate).millis(), ee.Date(endDate).millis(), biweekDifference);
 
@@ -407,7 +407,7 @@ print("Validation overallAccuracy", overallAccuracy);
 
 <!-- 
 
-<!-- 
+
 <center>
 ![](images/polygon-tool.png)
 </center>

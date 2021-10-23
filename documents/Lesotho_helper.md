@@ -166,7 +166,6 @@ print("chart", chart);
 
 <!-- 
 
-<!-- 
 <center>
 ![](images/polygon-tool.png)
 </center>

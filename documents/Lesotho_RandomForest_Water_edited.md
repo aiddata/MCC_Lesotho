@@ -1,6 +1,6 @@
 ## Extracting a time-series water masks using Random Forest - Lesotho
 
-In this tutorial, we will produce/output a bi-weekly time-series (2018-current) of water masks with each band representing a binary water mask. The goal for generating this time-series water masks is to monitoring the water changes bi-weekly from 2018 to current. The satellite imageries are from sentinel 2. The study area is in the north-western region of Lesotho. To do so, we need satellite imagery of the study region for the bi-weekly image composite from 2018 to October 2021.
+In this tutorial, we will produce/output a bi-weekly time-series (2018-June 2021) of water masks with each band representing a binary water mask. The goal for generating this time-series water masks is to monitoring the water changes bi-weekly from 2018 to 2021. The satellite imageries are from sentinel 2. The study area is in the north-western region of Lesotho. To do so, we need satellite imagery of the study region for the bi-weekly image composite from 2018 to June 2021.
 
 ### Load imagery
 
@@ -8,7 +8,7 @@ To understand the detail of this dataset we are using in this write-up, find the
 
 Import the training, testing dataset, and the study area for later usage.
 
-![Data Import](../images/data_import.png)
+![Data Import](../images/rf_import.png)
 
 This block of code is to load the bi-weekly data from sentinel 2, with the cloud cover less than or equal to 1%.
 
@@ -34,7 +34,7 @@ var region = study_area; //ee.Geometry.Rectangle(27.248340, -29.632341, 27.41636
 
 // Define time range
 var startDate = '2018-01-01'
-var endDate = '2021-10-31'
+var endDate = '2021-06-30'
 
 var biweekDifference = ee.Date(startDate).advance(2, 'week').millis().subtract(ee.Date(startDate).millis());
 var listMap = ee.List.sequence(ee.Date(startDate).millis(), ee.Date(endDate).millis(), biweekDifference);
@@ -50,7 +50,7 @@ var sentinel2 = ee.ImageCollection.fromImages(listMap.map(function(dateMillis){
 
 ### Creating indices for each image composite in the stacked image collection sentinel2.
 
-Each of the index function is independently generated. In this case, we are going to use the SWI, NDWI, NDDI, together with all the other bands to create a random forest classification model. There are four water indices created in the script, however, after analyzing the collinearity between the four water indices, SWI, NDWI, NDDI, and NDPI in script IndexVis.ipynb, we found the high correlation value between the SWI and NDPI. Thus, we only include SWI to create the random forest model. The functions that are used to generate other indices also included in the script snippet for records. The generated Sentinel2idxCollection is an image collection with all indices added to each image in the stacked image collection. 
+Each of the index function is independently generated. In this case, we are going to use the SWI, NDWI, NDDI, together with all the other bands to create a random forest classification model. There are four water indices created in the script, however, after analyzing the collinearity between the four water indices, SWI, NDWI, NDDI, and NDPI in script IndexVis.ipynb, we found the high correlation value between the SWI and NDPI. Thus, we will exclude NDPI to create the random forest model. The functions that are used to generate other indices also included in the script snippet for records. The generated Sentinel2idxCollection is an image collection with all indices added to each image in the stacked image collection. 
 
 For water body detection, the NDWI uses green band and NIR band, while the NDPI uses green band and SWIR. According to the water spectral reflectance signature below and the sentinel 2 spectral bands, the central wavelength of NIR is 832 nm with bandwidth 106 nm, and the central wavelength for SWIR is 1613 with bandwidth 91 nm. From the water spectral signature (the dotted line on the bottom in the figure), water has a higher reflectance on the band with wavelength 400-600 and gradually decreases from 600-1000, until later close to 0. The author who first combined SWIR and green band to calculate NDWI was to estimate the water content of vegetation canopy rather than detecting water bodies. This explains the ~0.45 correlation between NDWI and NDPI.
 
@@ -212,41 +212,44 @@ var bandlist = ['SWI','NDWI','NDDI','B2','B3','B4','B5','B6','B7','B8','B8A','B9
 ```
 Second, randomly generating 500 points from water samples, and 500 points from non-water samples. These 1000 random points will be used as our training data for model generalization. The output combinedPointCollection is a feature collection with 1000 sample points.
 
+Second, we will create the training and testing dataset for the classification task. 70% of data in our sampled water and non-water cases will be randomly selected as training dataset for random forest classification. 30% of the rest sampled data will be used as validation dataset for the predicted model. The code below is used to create the training/validation dataset.
+
 ```javascript
 
 // Defining the input data
 // --------------------------------------------------------------------
 
-var wtrain = ee.FeatureCollection(train_water);
-var ftrain = ee.FeatureCollection(non_water_train);
-
-
-// Define training data
+// Define training/validation data
 // -----------------------------------------------------------------------------
-// Create random points for water, training samples
-var rd_points_water = ee.FeatureCollection.randomPoints(wtrain,500, 0, 10)
-                                          .map(function(feat)
-                                                  {return feat.set('ld_code',1)}
-                                                );//.set('ld_type','water');
-var ptsBuff_water = rd_points_water.map(bufferPoints(10, false));
 
-print("rd_points_water", rd_points_water);
+var waterpoly = ee.FeatureCollection(water).map(function(feat)
+                                                   {return feat.set('ld_code',1)}
+                                                 );
 
+var nonwaterpoly = ee.FeatureCollection(nonwater).map(function(feat)
+                                                   {return feat.set('ld_code',0)}
+                                                 );
 
-// Create random points for non-water extraction
-var rd_points_nw = ee.FeatureCollection.randomPoints(ftrain,500, 0, 10)
-                                        .map(function(feat)
-                                                  {return feat.set('ld_code',0)}
-                                                );
-var ptsBuff_nw = rd_points_nw.map(bufferPoints(10, false));
-print("rd_points_nw", rd_points_nw);
+var combined_data = waterpoly.merge(nonwaterpoly)
+                              .map(function(feature){
+                                var num = ee.Number.parse(feature.get('ld_code'));
+                                return feature.set('ld_code', num)});
 
 
-var combinedPointCollection = ptsBuff_water.merge(ptsBuff_nw);
-print("combinedPointCollection", combinedPointCollection);
 
-Map.addLayer(combinedPointCollection);
+// Add a random column and split the polydata into training and validation set
+var combined_data = combined_data.randomColumn();
 
+print(combined_data, 'combined data');
+
+// 70% training, 30% validation
+
+var trainingdata = combined_data.filter(ee.Filter.gte('random', 0.3));
+var validationdata = combined_data.filter(ee.Filter.lt('random', 0.3));
+
+Map.addLayer(trainingdata);
+print(trainingdata, "training data");
+print(validationdata, "validation data");
 
 
 ```
@@ -259,6 +262,7 @@ The code below generates the random forest classifier to predict the probability
 
 ```javascript
 
+
 // Start working on Random Forest
 // ---------------------------------------------------------------------------
 
@@ -268,23 +272,24 @@ var time1=Sentinel2idxCollection.first();
 
 // Sample the input imagery to get a FeatureCollection of training data.
 var training = time1.select(bandlist).sampleRegions({
-  collection: combinedPointCollection, 
+  collection: trainingdata, 
   properties: ['ld_code'],
   scale: 10
 });
 
 
-print("training", training);
+print("training", training.first());
 
 // Make a Random Forest classifier and train it.
-var classifier = ee.Classifier.smileRandomForest(5)
+
+var classifier = ee.Classifier.smileRandomForest(50)
     .setOutputMode('PROBABILITY')
     .train({
       features: training,
       classProperty: 'ld_code',
       inputProperties: bandlist
     });
-
+    
 
 
 // Classify the input imagery.
@@ -298,31 +303,25 @@ var palette = [
 ];
 
 // Display the classification result and the input image.
-print("classification output", classified);
-Map.addLayer(classified.clip(region), {min: 0, max: 1, palette: palette}, 'Water probability');
+//print("classification output", classified);
+
+Map.addLayer(classified.clip(region), {min: 0, max: 1, palette: palette}, 'Water Probability');
 
 
 ```
 
 ### Finding the optimal probability threshold for random forest classification (ROC).
-In this section, the scripts below are used to find the optimal probability threshold value to distinguish water and non-water categories. The ROC curve is also created to evaluate the threshold value. 
+In this section, the scripts below are used to find the optimal probability value to distinguish water and non-water categories. The ROC curve is also created to evaluate the threshold value. 
 
-First, use the water samples and non-water samples you generated earlier to create a combined feature collection, this feature collection indicates the classification "probability" value of each sample data you used for training. You can check the feature properties by print the data out.
+First, we use the 30% of validation dataset we created earlier to create the ROC curve.
 
 ```javascript
 
-// Finding the optimal probability value to classify water and non-water cases.
-// Sample input points.
-var waterd = classified.reduceRegions(rd_points_water,ee.Reducer.max().setOutputs(['classification']),10).map(function(x){return x.set('is_target',1);})
-var nonwaterd = classified.reduceRegions(rd_points_nw,ee.Reducer.max().setOutputs(['classification']),10).map(function(x){return x.set('is_target',0);})
-var combined = waterd.merge(nonwaterd);
+// Validation data ROC
 
+var validation_roc = classified.reduceRegions(validationdata,ee.Reducer.max().setOutputs(['classification']),1);
 
-// Show random forest probability of points
-print(waterd.aggregate_array('classification'),'Water probability');
-print(nonwaterd.aggregate_array('classification'),'Non-Water probability');
-
-print("combined", combined);
+print(validation_roc, "validation_roc");
 
 ```
 
@@ -330,23 +329,22 @@ Second, similar to the index value threshold analysis, below functions are used 
 
 ```javascript
 
-
-// Calculate the Receiver Operating Characteristic (ROC) curve
+// Calculate the Receiver Operating Characteristic (ROC) curve for validation data
 // -----------------------------------------------------------
 
 // Chance these as needed
-var ROC_field = 'classification', ROC_min = 0, ROC_max = 1, ROC_steps = 500, ROC_points = combined
+var ROC_field = 'classification', ROC_min = 0, ROC_max = 1, ROC_steps = 50, ROC_points = validation_roc;
 
 
 var ROC = ee.FeatureCollection(ee.List.sequence(ROC_min, ROC_max, null, ROC_steps).map(function (cutoff) {
-  var target_roc = ROC_points.filterMetadata('is_target','equals',1);
+  var target_roc = ROC_points.filterMetadata('ld_code','equals',1);
   // true-positive-rate, sensitivity  
   var TPR = ee.Number(target_roc.filterMetadata(ROC_field,'greater_than',cutoff).size()).divide(target_roc.size());
-  var non_target_roc = ROC_points.filterMetadata('is_target','equals',0);
+  var non_target_roc = ROC_points.filterMetadata('ld_code','equals',0);
   // true-negative-rate, specificity  
   var TNR = ee.Number(non_target_roc.filterMetadata(ROC_field,'less_than',cutoff).size()).divide(non_target_roc.size());
-  return ee.Feature(null,{cutoff: cutoff, TPR: TPR, TNR: TNR, FPR:TNR.subtract(1).multiply(-1),  dist:TPR.subtract(1).pow(2).add(TNR.subtract(1).pow(2)).sqrt()})
-}))
+  return ee.Feature(null,{cutoff: cutoff, TPR: TPR, TNR: TNR, FPR:TNR.subtract(1).multiply(-1),  dist:TPR.subtract(1).pow(2).add(TNR.subtract(1).pow(2)).sqrt()});
+}));
 
 print("ROC", ROC);
 
@@ -356,15 +354,15 @@ var X = ee.Array(ROC.aggregate_array('FPR')),
     Y = ee.Array(ROC.aggregate_array('TPR')), 
     Xk_m_Xkm1 = X.slice(0,1).subtract(X.slice(0,0,-1)),
     Yk_p_Ykm1 = Y.slice(0,1).add(Y.slice(0,0,-1)),
-    AUC = Xk_m_Xkm1.multiply(Yk_p_Ykm1).multiply(0.5).reduce('sum',[0]).abs().toList().get(0)
-print(AUC,'Area under curve')
+    AUC = Xk_m_Xkm1.multiply(Yk_p_Ykm1).multiply(0.5).reduce('sum',[0]).abs().toList().get(0);
+print(AUC,'Area under curve');
 // Plot the ROC curve
 print(ui.Chart.feature.byFeature(ROC, 'FPR', 'TPR').setOptions({
       title: 'ROC curve',
       legend: 'none',
       hAxis: { title: 'False-positive-rate'},
       vAxis: { title: 'True-positive-rate'},
-      lineWidth: 1}))
+      lineWidth: 1}));
 
 // find the cutoff value whose ROC point is closest to (0,1) (= "perfect classification")      
 var ROC_best = ROC.sort('dist').first().get('cutoff').aside(print,'best ROC point cutoff');
@@ -434,51 +432,43 @@ A **confusion matrix** is the standard method for assessing the performance of a
 
 In this example, 50 out 60 cases of class 1 were correctly classified, while 100 out of 105 cases of class 2 were correctly classified Looking at the off-diagonal components, in 10 cases class 1 was incorrectly assigned to class 2, and in 5 cases class 2 was incorrectly assigned to class 1. The overall accuracy is the total number of correct classifications as a proportion of the total number of cases, which in this case is 150 / 165 = 91%.
 
-To calculate the confusion matrix and overall accuracy for the binary water and non-water map add the following code to the end of your script:
-
+We use an independent dataset for testing purpose. To calculate the confusion matrix and overall accuracy for the binary water and non-water map add the following code to the end of your script:
 
 ```javascript
+// Define testing data
+// ----------------------------------------
 
-// Defining the input data
-// --------------------------------------------------------------------
+var watertest = ee.FeatureCollection(water_test).map(function(feat)
+                                                   {return feat.set('ld_code',1)}
+                                                 );
 
-var wtest = ee.FeatureCollection(test_water);
-var ftest = ee.FeatureCollection(non_water_test);
+var nonwatertest = ee.FeatureCollection(non_water_test).map(function(feat)
+                                                   {return feat.set('ld_code',0)}
+                                                 );
+
+var allTest = watertest.merge(nonwatertest)
+                              .map(function(feature){
+                                var num = ee.Number.parse(feature.get('ld_code'));
+                                return feature.set('ld_code', num)});
 
 
-// Accuracy Assessment
-// -----------------------------------------------------------------------------
+print(allTest, 'allTest');
 
-// Define testing samples
-
-var waterpoly = wtest.map(function(feat)
-                          {return feat.set('ld_code',1)}
-                          );
-
-var nwaterpoly = ftest.map(function(feat)
-                          {return feat.set('ld_code',0)}
-                          );
-
-var allTest = waterpoly.merge(nwaterpoly);
-
-print("allTest", allTest);
 
 
 // Sample the classified binary data to get a FeatureCollection of testing cases
 
-var validation = binaryClass.select("classification").sampleRegions({
+var test = binaryClass.select("classification").sampleRegions({
   collection: allTest,
   properties: ['ld_code'],
   scale: 10
 });
 
 
-print("validation", validation);
-
 // Get a confusion matrix representing expected accuracy.
-var testAccuracy = validation.errorMatrix("ld_code", "classification");
-print('Validation error matrix: ', testAccuracy);
-print('Validation overall accuracy: ', testAccuracy.accuracy());
+var testAccuracy = test.errorMatrix("ld_code", "classification");
+print('Test error matrix: ', testAccuracy);
+print('Test overall accuracy: ', testAccuracy.accuracy());
 
 ```
 
@@ -536,7 +526,7 @@ function rf(bands){
 // Create a collection of classified output
 var classfiedCollection = Sentinel2idxCollection.map(rf(bandlist));
 
-print("classfiedCollection", classfiedCollection);
+//print("classfiedCollection", classfiedCollection);
 
 var waterBinaries = classfiedCollection.map(selectVal).map(function(image){
   var dateString = ee.Date(image.get('system:time_start')).format('yyyy-MM-dd');
@@ -545,8 +535,8 @@ var waterBinaries = classfiedCollection.map(selectVal).map(function(image){
   return bi;
 });
 
-print("waterBinaries", waterBinaries);
-Map.addLayer(waterBinaries.first());
+//print("waterBinaries", waterBinaries);
+Map.addLayer(waterBinaries.first(), {}, 'waterBinaries');
 
 
 var probCollection = classfiedCollection.map(function(image){
@@ -557,11 +547,12 @@ var probCollection = classfiedCollection.map(function(image){
 });
 
 
-Map.addLayer(probCollection.first());
+Map.addLayer(probCollection.first(), {}, 'Probability');
 
 
 var waterImage = newCollectionToImage(waterBinaries);
 var probImage = newCollectionToImage(probCollection);
+
 
 
 ```
@@ -609,7 +600,7 @@ Export.image.toDrive({image: waterImage,
 
 <!-- 
 
-<!-- 
+
 <center>
 ![](images/polygon-tool.png)
 </center>
