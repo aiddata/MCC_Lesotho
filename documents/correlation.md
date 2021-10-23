@@ -1,125 +1,31 @@
-## Pixel level trends and Drawing the mix/max/mean trends of given area (Visualization)
+## Measuring indicators for monitoring water resources
 
 This tutorial assumes people have basic knowledge about Google Earth Engine code editor.
 
 ### Pixel level NDVI trend
 
-In this tutorial, it includes creating visualization chart to check on the trends of index change. We use the NDVI as an example to illustrate the code, you can define your own index and plot the chart.
-
-First, we want to check on how does each pixel in a given study area (e.g. farmland) change overtime. In this way, we can track on the seasonal changes, strange un-expected index change overtime. 
+In this tutorial, we will identify a few water indices that are used to monitor water resources.
 
 Create the NDVI image collection. Read the random forest and threshold analysis tutorial to understand the below code.
 
 ```javascript
 
-// Mapping the NDVI trends per pixels in a given area
-// Add the polygon data
-
-var poly = fpoly;
-print(poly);
-
-// Define the study area
-
-var region = ee.Geometry.Rectangle(27.248340, -29.632341, 27.416364, -29.750510);
-
-function getBiweeklySentinelComposite(date) {
-        
-        var sentinel2 = ee.ImageCollection('COPERNICUS/S2_SR')
-                            .filterBounds(region)
-                            .filterDate(date, date.advance(6, 'week'))
-                            .filterMetadata('CLOUD_COVERAGE_ASSESSMENT', 'not_greater_than', 1);
-        
-        var composite = sentinel2.median()
-                            .set('system:time_start', date.millis(), 'dateYMD', date.format('YYYY-MM-dd'), 'numbImages', sentinel2.size());
-        
-        return composite;
-      }
 
 
-function getNDVI(scene){
-  // get a string representation of the date.
-  var dateString = ee.Date(scene.get('system:time_start')).format('yyyy-MM-dd');
-  var ndvi = scene.normalizedDifference(['B8', 'B4']).rename('NDVI');//.rename(dateString);
-  return ndvi.copyProperties(scene,['system:time_start','dateYMD']);
-}
-
-
-// Define the data range
-
-var startDate = '2019-01-01'
-var endDate = '2020-01-01'
-var biweekDifference = ee.Date(startDate).advance(6, 'week').millis().subtract(ee.Date(startDate).millis());
-var listMap = ee.List.sequence(ee.Date(startDate).millis(), ee.Date(endDate).millis(), biweekDifference);
-
-// Get biweekly sentinel2 data
-var sentinel2 = ee.ImageCollection.fromImages(listMap.map(function(dateMillis){
-  var date = ee.Date(dateMillis);
-  return getBiweeklySentinelComposite(date);
-}));
-
-// Filter out non-band images
-var filteredCollection = sentinel2
-    .map(function(image) {
-      return image.set('count', image.bandNames().length())
-    })
-    .filter(ee.Filter.eq('count', 23))
-
-
-var NDVICollection = filteredCollection.map(getNDVI);
-print("NDVICollection", NDVICollection);
 ```
-
 
 Get all the point coordinates within the farmland polygon.
 
 ```javascript
 
-// get coordinates image
-var latlon = ee.Image.pixelLonLat();//.reproject(proj);
 
-
-// put each lon lat in a list
-var coords = latlon.select(['longitude', 'latitude'])
-                 .reduceRegion({
-                    reducer: ee.Reducer.toList(),
-                    geometry: poly,
-                    scale: 10
-                  });
-
-// get lat & lon
-var lat = ee.List(coords.get('latitude'));
-var lon = ee.List(coords.get('longitude'));
-var point_list = lon.zip(lat);
-
-// Create points
-var mp = ee.Geometry.MultiPoint(point_list);
-
-var mpCollection = ee.FeatureCollection(point_list.map(function(p){
-  var point = ee.Feature(ee.Geometry.Point(p), {});
-  return point;
-}))
-
-print("mpCollection", mpCollection);
-
-Map.addLayer(mp,{}, 'Points');
-Map.centerObject(poly);
-Map.addLayer(NDVICollection.first().clip(region));
 ```
 
 Creating the trend chart.
 
 ```javascript
 
-var graph = ui.Chart.image.seriesByRegion({
-  imageCollection: NDVICollection, 
-  regions: mpCollection,
-  reducer: ee.Reducer.mean(),
-  scale:10
-});
 
-
-print("Feature chart");
-print(graph);
 ```
 
 ![The visualization of index trends](../images/pixel_trend.png)
@@ -131,32 +37,6 @@ The code below is used to create the min/max/mean/stdDev trend overtime.
 
 ```javascript
 
-// Tracking the max/mean/min/stdDev value trends of the given area
-// ---------------------------------------
-
-// Index comparison time series (draw mean, max, min, sd)
-
-var farmIndices = NDVICollection.select(['NDVI']);
-print("NDVI index", farmIndices);
-
-
-var feats = farmIndices.map(function(image){
-  //.combine(ee.Reducer.percentile([25,75],["25","75"]), '', true)
-  var reducers = ee.Reducer.mean().combine(ee.Reducer.max(), '', true).combine(ee.Reducer.min(), '', true).combine(ee.Reducer.stdDev(),'',true);
-  var stats = image.clip(fpoly)
-                   .reduceRegion(reducers, region, 10);
-  
-  return ee.Feature(null, stats).set('system:time_start', image.get('system:time_start'));
-
-});
-
-
-var chart = ui.Chart.feature.byFeature(feats, 'system:time_start')
-                //.setSeriesNames(['max', 'mean', 'min']);
-
-
-print("feats", feats);
-print("chart", chart);
 
 ```
 
