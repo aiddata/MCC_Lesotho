@@ -6,19 +6,16 @@ This tutorial assumes people have basic knowledge about Google Earth Engine code
 
 A simple and effective way to extract water is through water indices, which are calculated to distinguish water bodies and non-water land cover types. We have identified a few water indices that are mostly used in the field to detect water bodies, including SWI, NDWI, and mNDWI. In this tutorial, we will use SWI as an indicator to measure the seasonal and annual change of water bodies.
 
-We sampled a few waterbodies in the study area. By plotting the index value over time, we will be able to see the water trends over time.  
-
-Create the index image collection. Read the random forest and threshold analysis tutorial to understand the below code.
-
-Import the sample water body and assign it to variable poly.
+We sampled a few waterbodies in the study area. By plotting the index value over time, we will be able to see the water trends over time. (To create the index image collection. Read the random forest and threshold analysis tutorial to understand the below code.)
 
 This block of code is used to load the images taken between 2018 and 2021 from sentinel 2, with the cloud cover less than or equal to 1%. Load the user editable variables. Note that the code below have already included comments describing what each variable represents.
 ```javascript
 
-// Mapping the NDVI trends per pixels in a given area
+// Mapping the index trends
 // Add the polygon data
 
-var poly = fpoly;
+Import the sample water body and assign it to variable poly.
+var poly = wpoly;
 print(poly);
 
 // Define the study area
