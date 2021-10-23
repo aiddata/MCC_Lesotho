@@ -1,6 +1,6 @@
 ## Extracting a time-series water masks using Random Forest - Lesotho
 
-In this tutorial, we will map annual farmland using Sentinel-2 dataset from Google Earth Engine.
+In this tutorial, we will map a time series of farmland at 4 months interval using Sentinel-2 dataset from Google Earth Engine.
 
 ### Prepare Sentinel composite imagery
 
@@ -274,7 +274,7 @@ print('Test Accuracy', testConfusionMatrix.accuracy());
 ```
 
 ### Time series
-To create annual classification output.
+To create 4 months interval classification output.
 
 ```javascript
 
@@ -336,7 +336,7 @@ The following code is used to export the classification layer you produced.
 // Exporting the probability and the binary classification result
 
 Export.image.toDrive({image: classifiedImage,
-                      description: 'farmland_rf_annual',
+                      description: 'farmland_rf',
                       folder:'MCC_Lesotho',
                       scale: 10,
                       region: region,
