@@ -1,9 +1,6 @@
 ## Extracting a time-series water masks using Random Forest - Lesotho
 
-In this tutorial, we will generate a land classification map 
-
-
-with one month composite imagery from Sentinel-2 data. 
+In this tutorial, we will map annual farmland using Sentinel-2 dataset from Google Earth Engine.
 
 ### Prepare Sentinel composite imagery
 
@@ -13,17 +10,17 @@ Import the sampled fallow land, farmland, and water source data, these data will
 
 ![Data Import](../images/import_data.png)
 
-This block of code is to load the imageries taken in December 2020 from sentinel 2, with the cloud cover less than or equal to 1%. Load the user editable variables. Note that the code below have already included comments describing what each variable represents.
+This block of code is used to load the images taken between 2018 and 2021 from sentinel 2, with the cloud cover less than or equal to 1%. Load the user editable variables. Note that the code below have already included comments describing what each variable represents.
 
 ```javascript
 
 // Creating bi-weekly image
 
-function getBiweeklySentinelComposite(date) {
+function getSentinelComposite(date) {
         
         var sentinel2 = ee.ImageCollection('COPERNICUS/S2_SR')
                             .filterBounds(region)
-                            .filterDate(date, date.advance(2, 'week'))
+                            .filterDate(date, date.advance(4, 'month'))
                             .filterMetadata('CLOUD_COVERAGE_ASSESSMENT', 'not_greater_than', 1);
         
         var composite = sentinel2.median()
@@ -32,20 +29,20 @@ function getBiweeklySentinelComposite(date) {
         return composite;
       }
 
+
 // Define the working region geometry
-var region = study_area;
+var region = study_area; //ee.Geometry.Rectangle(27.248340, -29.632341, 27.416364, -29.750510);
 
-// Define time range
-var startDate = '2020-12-01';
-var endDate = '2020-12-31';
-var biweekDifference = ee.Date(startDate).advance(2, 'week').millis().subtract(ee.Date(startDate).millis());
-var listMap = ee.List.sequence(ee.Date(startDate).millis(), ee.Date(endDate).millis(), biweekDifference);
+var startDate = '2018-01-01';
+var endDate = '2021-06-01';
+var timeDifference = ee.Date(startDate).advance(4, 'month').millis().subtract(ee.Date(startDate).millis());
+var listMap = ee.List.sequence(ee.Date(startDate).millis(), ee.Date(endDate).millis(), timeDifference);
 
 
-// Get biweekly sentinel2 for the date between start and end date
+// Get sentinel2 composite
 var sentinel2 = ee.ImageCollection.fromImages(listMap.map(function(dateMillis){
   var date = ee.Date(dateMillis);
-  return getBiweeklySentinelComposite(date);
+  return getSentinelComposite(date);
 }));
 
 ```
@@ -276,6 +273,57 @@ print('Test Accuracy', testConfusionMatrix.accuracy());
 
 ```
 
+### Time series
+To create annual classification output.
+
+```javascript
+
+
+function rf_binary(bands){
+  
+  var wrap = function(image){
+    // Sample the input imagery to get a FeatureCollection of training data.
+    var training_lp = image.select(bands).sampleRegions({
+      collection: trainingdata, //combinedPointCollection,
+      properties: ['ld_code'],
+      scale: 10
+    });
+    
+    // Make a Random Forest classifier and train it.
+  var classifier = ee.Classifier.smileRandomForest(50)
+      .train({
+        features: training_lp,
+        classProperty: 'ld_code',
+        inputProperties: bands
+      });
+
+  
+  // Classify the input imagery.
+  var classified = image.select(bands).classify(classifier);
+  
+  return classified.copyProperties(image, ["system:time_start"]);
+  //return classified;
+  
+  };
+  
+  return wrap;
+
+}
+
+
+// Create a collection of classified output
+var classfiedCollection = Sentinel2idxCollection.map(rf_binary(bandlist))
+                                                .map(function(img)
+                                                  {return img.select('classification').eq(1);}
+                                                );
+
+
+// Convert image collection to images
+var classifiedImage = newCollectionToImage(classfiedCollection);
+
+print(classifiedImage);
+
+```
 
 ### Export the classification result
 
@@ -287,16 +335,17 @@ The following code is used to export the classification layer you produced.
 // -----------------------------------------------------------------------
 // Exporting the probability and the binary classification result
 
-Export.image.toDrive({image: classified,
-                      description: 'farmland_rf_202012',
+Export.image.toDrive({image: classifiedImage,
+                      description: 'farmland_rf_annual',
                       folder:'MCC_Lesotho',
                       scale: 10,
                       region: region,
                       fileFormat: 'GeoTiff',
-                      crs: 'EPSG:3857',
+                      crs: 'EPSG:32635',
                       maxPixels: 1808828538,
                       formatOptions: {cloudOptimized: true}
 }); //1191858690
+
 
 ```
 
