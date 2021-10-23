@@ -4,7 +4,7 @@ import rasterio
 from rasterio.plot import show
 
 
-fpath = r"/home/mirandalv/Documents/github/MCC_Lesotho/dataset/farmland_rf_4month.tif"
+fpath = r"/home/mirandalv/Documents/github/MCC_Lesotho/dataset/farmland_rf.tif"
 
 #20201019, 20200713,20200601, 20200323, 20200210, 20191230, 20191104, 20190520, 20190408, 20190211
 
@@ -18,8 +18,9 @@ fpath = r"/home/mirandalv/Documents/github/MCC_Lesotho/dataset/farmland_rf_4mont
 #             '20210503', '20210517', '20210531']
 
 # four month farmland interval
-timelist = ['20180829', '20181227', '20190426', '20190824', '20191222', '20200420', '20200818', '20201216', '20210415']
+# timelist = ['20180829', '20181227', '20190426', '20190824', '20191222', '20200420', '20200818', '20201216', '20210415']
 
+timelist = ['20180101', '20190101', '20200101', '20201231']
 
 src = rasterio.open(fpath)
 bd_count = src.count
