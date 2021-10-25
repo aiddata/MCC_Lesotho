@@ -1,46 +1,138 @@
 ## Measuring indicators for monitoring water resources
 
-This tutorial assumes people have basic knowledge about Google Earth Engine code editor.
+The aim of this post is to create a step by step instruction on measuring the statistic relationship between the water indices. The correlation between the selected water indices will be used to keep/remove the water indices from further analysis.
 
-### Pixel level NDVI trend
+From literature review, the NDWI, SWI, mNDWI, and SWM were selected for the water detection. To understand the process of adding the water indices as bands, see other posts in this folder.
 
-In this tutorial, we will identify a few water indices that are used to monitor water resources.
-
-Create the NDVI image collection. Read the random forest and threshold analysis tutorial to understand the below code.
 
 ```javascript
 
+function getSentinelComposite(date) {
+        
+        var sentinel2 = ee.ImageCollection('COPERNICUS/S2_SR')
+                            .filterBounds(region)
+                            .filterDate(date, date.advance(1, 'year'))
+                            .filterMetadata('CLOUD_COVERAGE_ASSESSMENT', 'not_greater_than', 1);
+        
+        var composite = sentinel2.median()
+                            .set('system:time_start', date.millis(), 'dateYMD', date.format('YYYY-MM-dd'), 'numbImages', sentinel2.size());
+        
+        return composite;
+      }
+
+
+// WATER INDEX (4)
+//---------------------
+      
+function addNDWI(image) {
+  // NDWI, sensitive the buil-ups
+  var ndwi = image.normalizedDifference(['B3', 'B8']).rename('NDWI');
+  return image.addBands(ndwi).clip(region);
+}
+      
+      
+function addSWI(image) {
+  // SWI
+  var swi = image.normalizedDifference(['B5', 'B11']).rename('SWI');
+  return image.addBands(swi).clip(region);
+}
+
+function addmNDWI(image){
+    // mNDWI: modified normalized difference water index
+    // (G-SWIR)/(G+SWIR)
+    var mndwi = image.normalizedDifference(['B3', 'B11']).rename('mNDWI');
+    return image.addBands(mndwi).clip(region);
+}
+
+
+function addSWM(image){
+        // SWM: sentinel water mask
+        // (B2+B3)/(B8+B11)
+        var swm = image.expression('(B2+B3)/(B8+B11)',{
+          'B2': image.select('B2'),
+          'B3': image.select('B3'),
+          'B8': image.select('B8'),
+          'B11': image.select('B11')
+        }).rename('SWM');
+        return image.addBands(swm).clip(region);
+      }
+      
+var region = study_area; //ee.Geometry.Rectangle(27.248340, -29.632341, 27.416364, -29.750510);
+
+var startDate = '2018-01-01';
+var endDate = '2021-06-01';
+var timeDifference = ee.Date(startDate).advance(1, 'year').millis().subtract(ee.Date(startDate).millis());
+var listMap = ee.List.sequence(ee.Date(startDate).millis(), ee.Date(endDate).millis(), timeDifference);
+
+
+// Get biweekly sentinel2 data
+var sentinel2 = ee.ImageCollection.fromImages(listMap.map(function(dateMillis){
+  var date = ee.Date(dateMillis);
+  return getSentinelComposite(date);
+}));
+
+
+// Filter out non-band images
+var Sentinel2idxCollection = sentinel2
+    .map(function(image) {
+      return image.set('count', image.bandNames().length());
+    })
+    .filter(ee.Filter.eq('count', 23))
+    .map(addSWI)
+    .map(addSWM)
+    .map(addNDWI)
+    .map(addmNDWI);
+    
 
 
 ```
 
-Get all the point coordinates within the farmland polygon.
+We use NDWI as an example to measure the relationship with the other three indices. 
 
 ```javascript
 
+// collinearity analysis
+
+var image = Sentinel2idxCollection.first();
+
+// Get a dictionary with band names as keys, pixel lists as values.
+var result = image.reduceRegion(ee.Reducer.toList(), data, 50);
+
+// Convert the band data to plot on the y-axis to arrays.
+var y1 = ee.Array(result.get('SWI'));
+var y2 = ee.Array(result.get('SWM'));
+var y3 = ee.Array(result.get('mNDWI'));
+
+// Concatenate the y-axis data by stacking the arrays on the 1-axis.
+var yValues = ee.Array.cat([y1, y2, y3], 1);
+
+// The band data to plot on the x-axis is a List.
+var xValues = result.get('NDWI');
+
+// Make a band correlation chart.
+var chart = ui.Chart.array.values(yValues, 0, xValues)
+    .setSeriesNames(['SWI', 'SWM', 'mNDWI'])
+    .setOptions({
+      title: 'Sentinel-2 NDWI vs. {SWI,SWM, mNDWI}',
+      hAxis: {'title': 'NDWI'},
+      vAxis: {'title': '{SWI,SWM,mNDWI}'},
+      pointSize: 3,
+      trendlines: { 0: {showR2: true, visibleInLegend: true}, 
+                    1: {showR2: true, visibleInLegend: true},
+                    2: {showR2: true, visibleInLegend: true}
+      }
+});
+
+// Print the chart.
+print(chart);
+
+print('Linear fit output NDWI vs SWI',ee.Array.cat([xValues, y1], 1).reduce(ee.Reducer.linearFit(),[0],1));
+print('Linear fit output NDWI vs SWM',ee.Array.cat([xValues, y2], 1).reduce(ee.Reducer.linearFit(),[0],1));
+print('Linear fit output SWI vs SWM',ee.Array.cat([y1, y2], 1).reduce(ee.Reducer.linearFit(),[0],1));
 
 ```
 
-Creating the trend chart.
-
-```javascript
-
-
-```
-
-![The visualization of index trends](../images/pixel_trend.png)
-
-
-### Tracking the NDVI min/max/mean/stdDev value change overtime for a given area
-
-The code below is used to create the min/max/mean/stdDev trend overtime.
-
-```javascript
-
-
-```
-
-![Index statistics trend](../images/index_sta.png)
+![The visualization of index trends](../images/correlation.png)
 
 
 

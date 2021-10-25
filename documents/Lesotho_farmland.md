@@ -1,4 +1,4 @@
-## Extracting a time-series water masks using Random Forest - Lesotho
+## Extracting a time-series of farmland at 4 months interval using Random Forest - Lesotho
 
 In this tutorial, we will map a time series of farmland at 4 months interval using Sentinel-2 dataset from Google Earth Engine.
 
@@ -350,7 +350,78 @@ Export.image.toDrive({image: classifiedImage,
 ```
 
 
+### Measuring annual change in farmland
 
+To measure the farm-size change at annual basis, we need to create the farmland classification output at an annual basis.
+
+```javascript
+// Create a collection of classified output
+var classfiedCollection = Sentinel2idxCollection.map(rf_binary(bandlist));
+
+```
+
+To create the annual change, use the below function to calculate the area of farmland at each year. 
+
+```javascript
+// Measure farm size annual change
+//----------------------------------------
+
+// Calculate size
+
+var farmfunction = function(image){
+  
+  // select farm pixels
+  var farmpx = image.select('classification').eq(1);
+
+  //mask those pixels from the image
+  image = image.updateMask(farmpx);
+
+  var area = ee.Image.pixelArea();
+  var farmArea = farmpx.multiply(area).rename('farmArea');
+
+  image = image.addBands(farmArea);
+
+  var stats = farmArea.reduceRegion({
+    reducer: ee.Reducer.sum(), 
+    geometry: study_area, 
+    scale: 10,
+  });
+
+  return image.set(stats);
+};
+
+```
+Calculate the annual farmland size and make the visualization of annual farmland change.
+
+
+```javascript
+var collection = classfiedCollection.map(farmfunction);
+print(collection);
+
+var options = {
+  title: 'Farmland size changing overtime',
+  hAxis: {title: 'Time'},
+  vAxis: {title: 'Area of farmland (square meters)'},
+  lineWidth: 1,
+  series: {
+    0: {color: '#FF0000'},
+    1: {color: '0000FF'}, 
+}};
+
+var chart = ui.Chart.image.series({
+  imageCollection: collection.select('farmArea'), 
+  region: study_area, 
+  reducer: ee.Reducer.sum(), 
+  scale: 10,
+})
+.setChartType('LineChart')
+.setOptions(options);
+
+print(chart);
+
+```
+
+![The visualization of index trends](../images/farm_change.png)
 
 
 <!-- 
